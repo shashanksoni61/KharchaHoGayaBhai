@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy Policy — Kharcha Ho Gaya Bhai</title>
+  <meta name="description" content="Privacy policy for Kharcha Ho Gaya Bhai, an on-device expense tracker for Android." />
+  <style>
+    :root {
+      --bg: #f7f4ef;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --accent: #0f766e;
+      --line: #d6d3d1;
+      --card: #ffffff;
+      --max: 42rem;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, #ccfbf1 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 0%, #fde68a 0%, transparent 45%),
+        var(--bg);
+      font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      line-height: 1.65;
+      font-size: 1.05rem;
+    }
+
+    header {
+      padding: 3.5rem 1.25rem 1.5rem;
+      max-width: var(--max);
+      margin: 0 auto;
+    }
+
+    .brand {
+      display: inline-block;
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+
+    h1 {
+      margin: 0 0 0.5rem;
+      font-size: clamp(1.85rem, 4vw, 2.4rem);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin: 0;
+    }
+
+    main {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 1.25rem 4rem;
+    }
+
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1.35rem 1.4rem;
+      margin: 1rem 0;
+    }
+
+    h2 {
+      margin: 0 0 0.65rem;
+      font-size: 1.15rem;
+      color: var(--accent);
+    }
+
+    p, ul { margin: 0 0 0.85rem; color: var(--ink); }
+    ul { padding-left: 1.2rem; }
+    li { margin-bottom: 0.35rem; }
+    p:last-child, ul:last-child { margin-bottom: 0; }
+
+    a { color: var(--accent); }
+
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: #f0fdfa;
+      padding: 0.9rem 1rem;
+      margin: 1rem 0 0;
+      border-radius: 0 8px 8px 0;
+    }
+
+    footer {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 1.25rem 3rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Kharcha Ho Gaya Bhai</div>
+    <h1>Privacy Policy</h1>
+    <p class="meta">
+      Effective date: 18 September 2026<br />
+      Package: <code>in.shashanksoni.kharchahogayabhai</code>
+    </p>
+  </header>
+
+  <main>
+    <section>
+      <h2>1. Overview</h2>
+      <p>
+        Kharcha Ho Gaya Bhai (“the App”) is an Android expense tracker that helps you
+        organise bank and UPI transactions from SMS alerts and from statement files you
+        choose to import. This policy explains what information the App accesses, how it
+        is used, and where it is stored.
+      </p>
+      <div class="callout">
+        <strong>Short version:</strong> Your transaction data stays on your phone.
+        The App does not create an account, does not upload your SMS or statements to our
+        servers, and does not sell your data.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Who we are</h2>
+      <p>
+        The App is published by Shashank Soni (“we”, “us”).
+        For privacy questions, contact:
+        <a href="mailto:privacy.shashanksoni@gmail.com">privacy.shashanksoni@gmail.com</a>
+        (update this address if you use a different inbox).
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Information the App accesses</h2>
+      <p>Depending on the features you use, the App may access:</p>
+      <ul>
+        <li>
+          <strong>SMS messages</strong> — with your permission, to find bank and UPI
+          transaction alerts and turn them into local expense entries. The App may also
+          listen for new SMS so new alerts can be processed after they arrive.
+        </li>
+        <li>
+          <strong>Files you select</strong> — CSV or PDF bank / UPI statements that you
+          explicitly pick through the system file picker.
+        </li>
+        <li>
+          <strong>Information you enter in the App</strong> — such as categories, custom
+          flags, notes, and other edits you make to transactions.
+        </li>
+        <li>
+          <strong>App preferences</strong> — for example, SMS scan settings and the last
+          scan time, stored locally on the device.
+        </li>
+      </ul>
+      <p>
+        The App is designed for on-device use. It does not require you to sign in, and it
+        does not collect a profile, email, or phone number for an account.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. How information is used</h2>
+      <p>Accessed information is used only to:</p>
+      <ul>
+        <li>Parse transaction details (amount, merchant, date, reference IDs, and similar fields)</li>
+        <li>Deduplicate matching SMS / CSV / PDF copies of the same payment</li>
+        <li>Show dashboards, lists, and summaries inside the App</li>
+        <li>Remember your categories, flags, notes, and import history on this device</li>
+      </ul>
+      <p>
+        SMS content is processed locally to identify likely bank or UPI alerts. Messages
+        that are not treated as transaction alerts are not kept as expenses.
+      </p>
+    </section>
+
+    <section>
+      <h2>5. Where data is stored</h2>
+      <ul>
+        <li>
+          Transaction data, categories, flags, and import history are stored in a local
+          database on your device.
+        </li>
+        <li>
+          Preference values (such as SMS scan options) are stored in local app storage
+          on your device.
+        </li>
+        <li>
+          Android cloud backup for this App is disabled, so App data is not included in
+          standard auto-backup transfers.
+        </li>
+      </ul>
+      <p>
+        We do not operate a backend that receives your SMS bodies, statement files, or
+        expense database for this App.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Permissions</h2>
+      <ul>
+        <li>
+          <strong>READ_SMS</strong> — required to scan existing inbox messages for
+          bank / UPI alerts when you choose to import or rescan SMS.
+        </li>
+        <li>
+          <strong>RECEIVE_SMS</strong> — used so the App can notice newly arrived alerts
+          and process them on-device when that option is enabled.
+        </li>
+      </ul>
+      <p>
+        You can deny or revoke SMS permission in Android system settings. Without it,
+        SMS-based features will not work; you can still use the App with CSV or PDF
+        imports where available.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Sharing, selling, and advertising</h2>
+      <ul>
+        <li>We do not sell your personal or financial data.</li>
+        <li>We do not share your SMS or statement contents with advertisers.</li>
+        <li>The App does not include third-party advertising SDKs.</li>
+        <li>
+          We do not use your transaction data for cross-app tracking or marketing profiles.
+        </li>
+      </ul>
+      <p>
+        If you contact us by email, the contents of that message are used only to respond
+        to your request.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Children</h2>
+      <p>
+        The App is not directed at children under 13 (or the minimum age required in your
+        region). We do not knowingly collect personal information from children.
+      </p>
+    </section>
+
+    <section>
+      <h2>9. Data retention and deletion</h2>
+      <p>
+        Data remains on your device until you delete it or uninstall the App. Inside the
+        App you can reset local dashboard / transaction data. Uninstalling the App removes
+        its local storage from that device, subject to normal Android behaviour.
+      </p>
+    </section>
+
+    <section>
+      <h2>10. Security</h2>
+      <p>
+        Because data stays on your device, protection depends largely on your phone’s
+        lock screen, OS updates, and who has physical access to the device. We recommend
+        keeping your device secured with a lock method you trust.
+      </p>
+    </section>
+
+    <section>
+      <h2>11. Third-party services and links</h2>
+      <p>
+        Statement files you import may originally come from banks or payment apps (for
+        example Google Pay or PhonePe). Those providers have their own privacy policies.
+        This policy covers only Kharcha Ho Gaya Bhai.
+      </p>
+    </section>
+
+    <section>
+      <h2>12. Changes to this policy</h2>
+      <p>
+        We may update this Privacy Policy when the App’s behaviour or legal requirements
+        change. The “Effective date” at the top will be revised when that happens. Continued
+        use of the App after an update means you accept the revised policy.
+      </p>
+    </section>
+
+    <section>
+      <h2>13. Contact</h2>
+      <p>
+        Questions about privacy or data handling:
+        <a href="mailto:privacy.shashanksoni@gmail.com">privacy.shashanksoni@gmail.com</a>
+      </p>
+      <p>
+        App name: Kharcha Ho Gaya Bhai<br />
+        Android package name: <code>in.shashanksoni.kharchahogayabhai</code>
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    © 2026 Kharcha Ho Gaya Bhai. This page is provided for Google Play listing and user transparency.
+  </footer>
+</body>
+</html>
