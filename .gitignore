@@ -4,8 +4,13 @@
 /.idea
 .DS_Store
 /build
+**/build/
 /captures
 .externalNativeBuild
 .cxx
 local.properties
 /.kotlin
+PhonePe_Statement_Aug2026_Sept2026.csv
+*.apk
+*.ap_
+*.aab

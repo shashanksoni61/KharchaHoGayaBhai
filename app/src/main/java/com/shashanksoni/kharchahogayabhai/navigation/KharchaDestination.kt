@@ -2,21 +2,15 @@ package com.shashanksoni.kharchahogayabhai.navigation
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.PieChart
-import androidx.compose.material.icons.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.shashanksoni.kharchahogayabhai.R
 
-/**
- * Every screen in the app.
- *
- * Import and settings destinations join this list in later phases; screens do not
- * know about each other, only about the callbacks they are given.
- */
 sealed interface KharchaDestination {
     val route: String
 
-    /** Reachable from the bottom bar. */
     sealed interface TopLevel : KharchaDestination {
         @get:StringRes
         val labelRes: Int
@@ -32,7 +26,18 @@ sealed interface KharchaDestination {
     data object Transactions : TopLevel {
         override val route = "transactions"
         override val labelRes = R.string.nav_transactions
-        override val icon = Icons.Rounded.ReceiptLong
+        override val icon = Icons.AutoMirrored.Rounded.ReceiptLong
+    }
+
+    data object Settings : TopLevel {
+        override val route = "settings"
+        override val labelRes = R.string.nav_settings
+        override val icon = Icons.Rounded.Settings
+    }
+
+    /** Nested under Settings — CSV / PDF / SMS import is infrequent. */
+    data object Import : KharchaDestination {
+        override val route = "settings/import"
     }
 
     data object TransactionDetail : KharchaDestination {
@@ -43,6 +48,6 @@ sealed interface KharchaDestination {
     }
 
     companion object {
-        val topLevelDestinations = listOf(Dashboard, Transactions)
+        val topLevelDestinations = listOf(Dashboard, Transactions, Settings)
     }
 }

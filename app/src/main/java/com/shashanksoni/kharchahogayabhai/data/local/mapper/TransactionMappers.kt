@@ -1,6 +1,7 @@
 package com.shashanksoni.kharchahogayabhai.data.local.mapper
 
 import com.shashanksoni.kharchahogayabhai.core.database.entity.CategoryEntity
+import com.shashanksoni.kharchahogayabhai.core.database.entity.LabelEntity
 import com.shashanksoni.kharchahogayabhai.core.database.entity.TransactionEntity
 import com.shashanksoni.kharchahogayabhai.core.database.entity.TransactionSourceRecordEntity
 import com.shashanksoni.kharchahogayabhai.core.database.projection.TransactionSummaryProjection
@@ -9,6 +10,7 @@ import com.shashanksoni.kharchahogayabhai.domain.model.Category
 import com.shashanksoni.kharchahogayabhai.domain.model.Money
 import com.shashanksoni.kharchahogayabhai.domain.model.Transaction
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDetail
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionLabel
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSourceRecord
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSummary
 import java.time.Instant
@@ -87,6 +89,23 @@ fun TransactionWithDetails.toDomain(): TransactionDetail = TransactionDetail(
     transaction = transaction.toDomain(),
     category = category?.toDomain(),
     sources = sources.map { it.toDomain() },
+    labels = labels.map { it.toDomain() },
+)
+
+fun LabelEntity.toDomain(): TransactionLabel = TransactionLabel(
+    id = id,
+    name = name,
+    colorHex = colorHex,
+    isSystemDefined = isSystemDefined,
+    sortOrder = sortOrder,
+)
+
+fun TransactionLabel.toEntity(): LabelEntity = LabelEntity(
+    id = id,
+    name = name,
+    colorHex = colorHex,
+    isSystemDefined = isSystemDefined,
+    sortOrder = sortOrder,
 )
 
 fun TransactionSummaryProjection.toDomain(): TransactionSummary = TransactionSummary(

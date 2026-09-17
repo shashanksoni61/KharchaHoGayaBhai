@@ -1,8 +1,0 @@
-com.shashanksoni.kharchahogayabhai.app-pngs-0 /home/gs/AndroidStudioProjects/KharchaHoGayaBhai/app/build/generated/res/pngs/debug
-com.shashanksoni.kharchahogayabhai.app-updated_navigation_xml-1 /home/gs/AndroidStudioProjects/KharchaHoGayaBhai/app/build/generated/updated_navigation_xml/debug
-com.shashanksoni.kharchahogayabhai.app-packageDebugResources-2 /home/gs/AndroidStudioProjects/KharchaHoGayaBhai/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
-com.shashanksoni.kharchahogayabhai.app-packageDebugResources-3 /home/gs/AndroidStudioProjects/KharchaHoGayaBhai/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
-com.shashanksoni.kharchahogayabhai.app-debug-4 /home/gs/AndroidStudioProjects/KharchaHoGayaBhai/app/build/intermediates/merged_res/debug/mergeDebugResources
-com.shashanksoni.kharchahogayabhai.app-debug-5 /home/gs/AndroidStudioProjects/KharchaHoGayaBhai/app/src/debug/res
-com.shashanksoni.kharchahogayabhai.app-main-6 /home/gs/AndroidStudioProjects/KharchaHoGayaBhai/app/src/main/res
-gradleHome-0 /home/gs/.gradle

@@ -1,25 +1,25 @@
 package com.shashanksoni.kharchahogayabhai.ui.util
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.HelpOutline
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Flight
-import androidx.compose.material.icons.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LocalAtm
 import androidx.compose.material.icons.rounded.LocalHospital
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.PictureAsPdf
-import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material.icons.rounded.Sms
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.TableChart
-import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
@@ -37,18 +37,18 @@ object CategoryVisuals {
         "food" -> Icons.Rounded.Restaurant
         "shopping" -> Icons.Rounded.ShoppingBag
         "transport" -> Icons.Rounded.DirectionsCar
-        "bills" -> Icons.Rounded.ReceiptLong
+        "bills" -> Icons.AutoMirrored.Rounded.ReceiptLong
         "entertainment" -> Icons.Rounded.Movie
         "travel" -> Icons.Rounded.Flight
         "healthcare" -> Icons.Rounded.LocalHospital
         "education" -> Icons.Rounded.School
         "rent" -> Icons.Rounded.Home
         "salary" -> Icons.Rounded.Payments
-        "investment" -> Icons.Rounded.TrendingUp
+        "investment" -> Icons.AutoMirrored.Rounded.TrendingUp
         "transfer" -> Icons.Rounded.SwapHoriz
         "cash" -> Icons.Rounded.LocalAtm
         "other" -> Icons.Rounded.Category
-        else -> Icons.Rounded.HelpOutline
+        else -> Icons.AutoMirrored.Rounded.HelpOutline
     }
 
     fun iconFor(source: TransactionSource): ImageVector = when (source) {

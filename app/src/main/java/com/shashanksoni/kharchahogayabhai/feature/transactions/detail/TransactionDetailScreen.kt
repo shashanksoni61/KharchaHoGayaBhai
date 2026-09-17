@@ -3,6 +3,8 @@ package com.shashanksoni.kharchahogayabhai.feature.transactions.detail
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,9 +18,11 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,6 +43,7 @@ import com.shashanksoni.kharchahogayabhai.core.normalization.AccountIdentifierNo
 import com.shashanksoni.kharchahogayabhai.domain.model.Category
 import com.shashanksoni.kharchahogayabhai.domain.model.ParseStatus
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDetail
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionLabel
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSourceRecord
 import com.shashanksoni.kharchahogayabhai.ui.component.CategoryAvatar
 import com.shashanksoni.kharchahogayabhai.ui.component.SectionCard
@@ -57,6 +62,7 @@ fun TransactionDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var isChoosingCategory by remember { mutableStateOf(false) }
+    var isCreatingLabel by remember { mutableStateOf(false) }
 
     when {
         uiState.isLoading -> CenteredMessage { CircularProgressIndicator() }
@@ -73,8 +79,12 @@ fun TransactionDetailScreen(
             val detail = requireNotNull(uiState.detail)
             TransactionDetailContent(
                 detail = detail,
+                allLabels = uiState.allLabels,
                 zone = zone,
                 onChangeCategoryClick = { isChoosingCategory = true },
+                onToggleLabel = viewModel::toggleLabel,
+                onAddCustomLabelClick = { isCreatingLabel = true },
+                labelError = uiState.labelError,
                 modifier = modifier,
                 contentPadding = contentPadding,
             )
@@ -90,20 +100,36 @@ fun TransactionDetailScreen(
                     onDismiss = { isChoosingCategory = false },
                 )
             }
+
+            if (isCreatingLabel) {
+                CreateLabelOnTransactionDialog(
+                    onConfirm = { name ->
+                        viewModel.createAndAttachCustomLabel(name)
+                        isCreatingLabel = false
+                    },
+                    onDismiss = { isCreatingLabel = false },
+                )
+            }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TransactionDetailContent(
     detail: TransactionDetail,
+    allLabels: List<TransactionLabel>,
     zone: ZoneId,
     onChangeCategoryClick: () -> Unit,
+    onToggleLabel: (labelId: Long, currentlyAttached: Boolean) -> Unit,
+    onAddCustomLabelClick: () -> Unit,
+    labelError: String?,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     val transaction = detail.transaction
     val notAvailable = stringResource(R.string.detail_none)
+    val attachedIds = detail.labels.map { it.id }.toSet()
 
     Column(
         modifier = modifier
@@ -154,6 +180,52 @@ private fun TransactionDetailContent(
             }
         }
 
+        SectionCard(
+            title = stringResource(R.string.detail_flags_title),
+            trailing = {
+                TextButton(onClick = onAddCustomLabelClick) {
+                    Text(stringResource(R.string.detail_add_custom_flag))
+                }
+            },
+        ) {
+            Text(
+                text = stringResource(R.string.detail_flags_explanation),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
+                allLabels.forEach { label ->
+                    val selected = label.id in attachedIds
+                    FilterChip(
+                        selected = selected,
+                        onClick = { onToggleLabel(label.id, selected) },
+                        label = { Text(label.name) },
+                        leadingIcon = if (selected) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                        } else {
+                            null
+                        },
+                    )
+                }
+            }
+            labelError?.let { error ->
+                Text(
+                    text = error,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
         SectionCard(title = stringResource(R.string.detail_title)) {
             DetailRow(
                 label = stringResource(R.string.detail_payment_method),
@@ -187,7 +259,6 @@ private fun TransactionDetailContent(
             )
         }
 
-        // Provenance: what deduplication merged, and what each source contributed.
         SectionCard(title = stringResource(R.string.detail_sources)) {
             detail.sources.forEach { sourceRecord ->
                 SourceRow(sourceRecord = sourceRecord, zone = zone)
@@ -306,6 +377,40 @@ private fun CategoryPickerDialog(
                         },
                     )
                 }
+            }
+        },
+    )
+}
+
+@Composable
+private fun CreateLabelOnTransactionDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.detail_add_custom_flag_title)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(stringResource(R.string.settings_label_name_hint)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(name.trim()) },
+                enabled = name.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.settings_add_label_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.detail_dismiss))
             }
         },
     )

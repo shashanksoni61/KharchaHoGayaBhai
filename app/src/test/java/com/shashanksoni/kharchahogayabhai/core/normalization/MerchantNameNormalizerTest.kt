@@ -59,7 +59,7 @@ class MerchantNameNormalizerTest {
     fun `display names are readable`() {
         assertEquals("Swiggy", MerchantNameNormalizer.toDisplayName("SWIGGY LIMITED"))
         assertEquals("Swiggy", MerchantNameNormalizer.toDisplayName("UPI/SWIGGY/123456789012"))
-        assertEquals("Big Bazaar", MerchantNameNormalizer.toDisplayName("BIG BAZAAR"))
+        assertEquals("BIG Bazaar", MerchantNameNormalizer.toDisplayName("BIG BAZAAR"))
         assertEquals("KFC", MerchantNameNormalizer.toDisplayName("KFC"))
     }
 

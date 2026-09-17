@@ -5,6 +5,7 @@ data class TransactionDetail(
     val transaction: Transaction,
     val category: Category?,
     val sources: List<TransactionSourceRecord>,
+    val labels: List<TransactionLabel> = emptyList(),
 ) {
     val contributingSources: Set<TransactionSource>
         get() = sources.mapTo(linkedSetOf()) { it.source }

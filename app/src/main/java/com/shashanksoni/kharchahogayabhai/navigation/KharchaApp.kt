@@ -28,6 +28,10 @@ import com.shashanksoni.kharchahogayabhai.R
 import com.shashanksoni.kharchahogayabhai.di.AppContainer
 import com.shashanksoni.kharchahogayabhai.feature.dashboard.DashboardScreen
 import com.shashanksoni.kharchahogayabhai.feature.dashboard.DashboardViewModel
+import com.shashanksoni.kharchahogayabhai.feature.importfile.ImportScreen
+import com.shashanksoni.kharchahogayabhai.feature.importfile.ImportViewModel
+import com.shashanksoni.kharchahogayabhai.feature.settings.SettingsScreen
+import com.shashanksoni.kharchahogayabhai.feature.settings.SettingsViewModel
 import com.shashanksoni.kharchahogayabhai.feature.transactions.detail.TransactionDetailScreen
 import com.shashanksoni.kharchahogayabhai.feature.transactions.detail.TransactionDetailViewModel
 import com.shashanksoni.kharchahogayabhai.feature.transactions.list.TransactionListScreen
@@ -122,6 +126,22 @@ private fun KharchaNavHost(
             )
         }
 
+        composable(KharchaDestination.Settings.route) {
+            SettingsScreen(
+                viewModel = viewModel(factory = SettingsViewModel.factory(container)),
+                onOpenImport = { navController.navigate(KharchaDestination.Import.route) },
+                contentPadding = contentPadding,
+            )
+        }
+
+        composable(KharchaDestination.Import.route) {
+            ImportScreen(
+                viewModel = viewModel(factory = ImportViewModel.factory(container)),
+                zone = container.zone,
+                contentPadding = contentPadding,
+            )
+        }
+
         composable(
             route = KharchaDestination.TransactionDetail.route,
             arguments = listOf(
@@ -156,6 +176,8 @@ private fun NavHostController.navigateToTopLevel(destination: KharchaDestination
 
 private fun titleResOf(route: String?): Int = when (route) {
     KharchaDestination.Transactions.route -> R.string.nav_transactions
+    KharchaDestination.Import.route -> R.string.nav_import
+    KharchaDestination.Settings.route -> R.string.nav_settings
     KharchaDestination.TransactionDetail.route -> R.string.detail_title
     else -> R.string.app_name
 }

@@ -3,27 +3,27 @@ package com.shashanksoni.kharchahogayabhai.core.database
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.shashanksoni.kharchahogayabhai.core.database.dao.CategoryDao
+import com.shashanksoni.kharchahogayabhai.core.database.dao.ImportBatchDao
+import com.shashanksoni.kharchahogayabhai.core.database.dao.LabelDao
 import com.shashanksoni.kharchahogayabhai.core.database.dao.TransactionDao
 import com.shashanksoni.kharchahogayabhai.core.database.dao.TransactionSourceDao
 import com.shashanksoni.kharchahogayabhai.core.database.entity.CategoryEntity
+import com.shashanksoni.kharchahogayabhai.core.database.entity.ImportBatchEntity
+import com.shashanksoni.kharchahogayabhai.core.database.entity.LabelEntity
 import com.shashanksoni.kharchahogayabhai.core.database.entity.TransactionEntity
+import com.shashanksoni.kharchahogayabhai.core.database.entity.TransactionLabelCrossRef
 import com.shashanksoni.kharchahogayabhai.core.database.entity.TransactionSourceRecordEntity
 
-/**
- * The single local store. All financial data stays on the device; there is no
- * backend and nothing is uploaded.
- *
- * Enums are persisted by name using Room's built-in support, and timestamps as
- * epoch milliseconds, so no type converters are needed. Schemas are exported to
- * `app/schemas` so future migrations are reviewable and testable.
- */
 @Database(
     entities = [
         TransactionEntity::class,
         TransactionSourceRecordEntity::class,
         CategoryEntity::class,
+        ImportBatchEntity::class,
+        LabelEntity::class,
+        TransactionLabelCrossRef::class,
     ],
-    version = 1,
+    version = 3,
     exportSchema = true,
 )
 abstract class KharchaDatabase : RoomDatabase() {
@@ -33,6 +33,10 @@ abstract class KharchaDatabase : RoomDatabase() {
     abstract fun transactionSourceDao(): TransactionSourceDao
 
     abstract fun categoryDao(): CategoryDao
+
+    abstract fun importBatchDao(): ImportBatchDao
+
+    abstract fun labelDao(): LabelDao
 
     companion object {
         const val NAME = "kharcha.db"

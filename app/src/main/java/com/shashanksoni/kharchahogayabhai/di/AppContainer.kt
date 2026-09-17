@@ -3,33 +3,37 @@ package com.shashanksoni.kharchahogayabhai.di
 import android.content.Context
 import androidx.room.Room
 import com.shashanksoni.kharchahogayabhai.core.database.KharchaDatabase
+import com.shashanksoni.kharchahogayabhai.core.database.KharchaMigrations
+import com.shashanksoni.kharchahogayabhai.core.deduplication.TransactionIngestor
 import com.shashanksoni.kharchahogayabhai.core.deduplication.TransactionMerger
 import com.shashanksoni.kharchahogayabhai.core.normalization.TransactionNormalizer
-import com.shashanksoni.kharchahogayabhai.data.local.SampleTransactionSeeder
+import com.shashanksoni.kharchahogayabhai.csv.CsvTransactionParser
 import com.shashanksoni.kharchahogayabhai.data.repository.RoomCategoryRepository
+import com.shashanksoni.kharchahogayabhai.data.repository.RoomImportRepository
+import com.shashanksoni.kharchahogayabhai.data.repository.RoomLabelRepository
 import com.shashanksoni.kharchahogayabhai.data.repository.RoomTransactionRepository
 import com.shashanksoni.kharchahogayabhai.domain.repository.CategoryRepository
+import com.shashanksoni.kharchahogayabhai.domain.repository.ImportRepository
+import com.shashanksoni.kharchahogayabhai.domain.repository.LabelRepository
 import com.shashanksoni.kharchahogayabhai.domain.repository.TransactionRepository
 import com.shashanksoni.kharchahogayabhai.domain.usecase.GetMonthlyDashboardUseCase
+import com.shashanksoni.kharchahogayabhai.domain.usecase.ImportSmsInboxUseCase
+import com.shashanksoni.kharchahogayabhai.domain.usecase.ImportStatementFileUseCase
+import com.shashanksoni.kharchahogayabhai.domain.usecase.ResetLocalDataUseCase
+import com.shashanksoni.kharchahogayabhai.pdf.PdfTextExtractor
+import com.shashanksoni.kharchahogayabhai.pdf.PdfTransactionParser
+import com.shashanksoni.kharchahogayabhai.sms.SmsInboxReader
+import com.shashanksoni.kharchahogayabhai.sms.SmsTransactionParser
 import java.time.Clock
 import java.time.ZoneId
 
 /**
  * Wires the app together by hand.
- *
- * There is no DI framework on purpose: the graph is small, every dependency is
- * constructed here in plain Kotlin, and nothing needs code generation or an extra
- * build plugin. If the graph grows past what is readable in one file, Hilt is the
- * next step.
  */
 class AppContainer(context: Context) {
 
     private val applicationContext: Context = context.applicationContext
-
-    /** UTC clock; local time only enters at display and calendar boundaries. */
     private val clock: Clock = Clock.systemUTC()
-
-    /** Resolved once, so a mid-session timezone change cannot shift existing reports. */
     val zone: ZoneId = ZoneId.systemDefault()
 
     private val database: KharchaDatabase by lazy {
@@ -37,7 +41,17 @@ class AppContainer(context: Context) {
             applicationContext,
             KharchaDatabase::class.java,
             KharchaDatabase.NAME,
-        ).build()
+        )
+            .addMigrations(KharchaMigrations.MIGRATION_1_2, KharchaMigrations.MIGRATION_2_3)
+            .build()
+    }
+
+    private val transactionNormalizer: TransactionNormalizer by lazy {
+        TransactionNormalizer(zone = zone, clock = clock)
+    }
+
+    private val transactionMerger: TransactionMerger by lazy {
+        TransactionMerger(zone = zone, clock = clock)
     }
 
     val transactionRepository: TransactionRepository by lazy {
@@ -48,6 +62,20 @@ class AppContainer(context: Context) {
         RoomCategoryRepository(categoryDao = database.categoryDao())
     }
 
+    val labelRepository: LabelRepository by lazy {
+        RoomLabelRepository(
+            labelDao = database.labelDao(),
+            prefs = applicationContext.getSharedPreferences(
+                RoomLabelRepository.PREFS_NAME,
+                Context.MODE_PRIVATE,
+            ),
+        )
+    }
+
+    val importRepository: ImportRepository by lazy {
+        RoomImportRepository(importBatchDao = database.importBatchDao())
+    }
+
     val getMonthlyDashboard: GetMonthlyDashboardUseCase by lazy {
         GetMonthlyDashboardUseCase(
             transactionRepository = transactionRepository,
@@ -56,20 +84,48 @@ class AppContainer(context: Context) {
         )
     }
 
-    private val sampleTransactionSeeder: SampleTransactionSeeder by lazy {
-        SampleTransactionSeeder(
+    val resetLocalData: ResetLocalDataUseCase by lazy {
+        ResetLocalDataUseCase(
+            database = database,
+            transactionDao = database.transactionDao(),
+            importBatchDao = database.importBatchDao(),
+        )
+    }
+
+    private val transactionIngestor: TransactionIngestor by lazy {
+        TransactionIngestor(
+            database = database,
             transactionDao = database.transactionDao(),
             transactionSourceDao = database.transactionSourceDao(),
-            normalizer = TransactionNormalizer(zone = zone, clock = clock),
-            merger = TransactionMerger(zone = zone, clock = clock),
-            zone = zone,
+            normalizer = transactionNormalizer,
+            merger = transactionMerger,
+        )
+    }
+
+    val importStatementFile: ImportStatementFileUseCase by lazy {
+        ImportStatementFileUseCase(
+            appContext = applicationContext,
+            csvParser = CsvTransactionParser(zone = zone),
+            pdfParser = PdfTransactionParser(zone = zone),
+            pdfTextExtractor = PdfTextExtractor(applicationContext),
+            ingestor = transactionIngestor,
+            importRepository = importRepository,
             clock = clock,
         )
     }
 
-    /** Idempotent startup work: built-in categories, plus sample data while there is no importer. */
+    val importSmsInbox: ImportSmsInboxUseCase by lazy {
+        ImportSmsInboxUseCase(
+            inboxReader = SmsInboxReader(applicationContext),
+            smsParser = SmsTransactionParser(),
+            ingestor = transactionIngestor,
+            importRepository = importRepository,
+            clock = clock,
+        )
+    }
+
     suspend fun prepareLocalData() {
         categoryRepository.ensureDefaultCategoriesExist()
-        sampleTransactionSeeder.seedIfEmpty()
+        labelRepository.ensureDefaultLabelsExist()
     }
 }

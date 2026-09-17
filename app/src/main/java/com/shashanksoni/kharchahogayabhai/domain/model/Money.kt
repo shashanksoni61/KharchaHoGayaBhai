@@ -28,11 +28,15 @@ data class Money(
 
     fun toBigDecimal(): BigDecimal = BigDecimal.valueOf(minorUnits, fractionDigits)
 
-    operator fun plus(other: Money): Money =
-        copy(minorUnits = minorUnits + other.requireSameCurrency().minorUnits)
+    operator fun plus(other: Money): Money {
+        requireSameCurrency(other)
+        return copy(minorUnits = minorUnits + other.minorUnits)
+    }
 
-    operator fun minus(other: Money): Money =
-        copy(minorUnits = minorUnits - other.requireSameCurrency().minorUnits)
+    operator fun minus(other: Money): Money {
+        requireSameCurrency(other)
+        return copy(minorUnits = minorUnits - other.minorUnits)
+    }
 
     /** Share of [total] in the 0f..1f range; zero when [total] is zero. */
     fun shareOf(total: Money): Float {
@@ -41,10 +45,10 @@ data class Money(
         return (minorUnits.toDouble() / total.minorUnits.toDouble()).toFloat()
     }
 
-    override fun compareTo(other: Money): Int =
-        minorUnits.compareTo(other.requireSameCurrency().minorUnits)
-
-    private fun Money.requireSameCurrency(): Money = also { requireSameCurrency(it) }
+    override fun compareTo(other: Money): Int {
+        requireSameCurrency(other)
+        return minorUnits.compareTo(other.minorUnits)
+    }
 
     private fun requireSameCurrency(other: Money) {
         require(currencyCode == other.currencyCode) {
