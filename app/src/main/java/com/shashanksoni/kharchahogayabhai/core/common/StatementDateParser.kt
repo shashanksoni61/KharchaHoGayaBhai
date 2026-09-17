@@ -21,8 +21,10 @@ object StatementDateParser {
         DateTimeFormatter.ofPattern("d-M-uu", Locale.ENGLISH),
         DateTimeFormatter.ofPattern("uuuu-M-d", Locale.ENGLISH),
         DateTimeFormatter.ofPattern("d MMM uuuu", Locale.ENGLISH),
+        DateTimeFormatter.ofPattern("d MMM, uuuu", Locale.ENGLISH), // GPay: "02 Aug, 2026"
         DateTimeFormatter.ofPattern("d-MMM-uuuu", Locale.ENGLISH),
         DateTimeFormatter.ofPattern("d MMMM uuuu", Locale.ENGLISH),
+        DateTimeFormatter.ofPattern("d MMMM, uuuu", Locale.ENGLISH),
         // PhonePe: "Sept 17, 2026" (normalised to Sep before parse)
         DateTimeFormatter.ofPattern("MMM d, uuuu", Locale.ENGLISH),
         DateTimeFormatter.ofPattern("MMMM d, uuuu", Locale.ENGLISH),
@@ -78,8 +80,8 @@ object StatementDateParser {
     }
 
     fun parseTime(raw: String): LocalTime? {
-        val cleaned = raw.trim().uppercase(Locale.ENGLISH)
-            .replace('.', ':')
+        val spaced = insertSpaceBeforeAmPm(raw.trim())
+        val cleaned = spaced.uppercase(Locale.ENGLISH).replace('.', ':')
         for (formatter in timeFormatters) {
             try {
                 return LocalTime.parse(cleaned, formatter)
@@ -88,16 +90,19 @@ object StatementDateParser {
             }
         }
         // Retry with original casing for patterns that need "pm"
-        val original = raw.trim()
         for (formatter in timeFormatters) {
             try {
-                return LocalTime.parse(original, formatter)
+                return LocalTime.parse(spaced, formatter)
             } catch (_: DateTimeParseException) {
                 // try next
             }
         }
         return null
     }
+
+    /** GPay / some banks print `12:59PM` without a space before AM/PM. */
+    private fun insertSpaceBeforeAmPm(raw: String): String =
+        raw.replace(Regex("""(?i)(\d)([ap]m)\b"""), "$1 $2")
 
     private fun parseDateTime(raw: String): LocalDateTime? {
         val cleaned = normalizeMonthNames(raw.trim())

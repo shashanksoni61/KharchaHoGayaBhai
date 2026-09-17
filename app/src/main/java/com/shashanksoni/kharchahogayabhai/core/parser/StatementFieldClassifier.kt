@@ -232,9 +232,9 @@ object StatementRowAssembler {
     }
 
     private fun extractMerchant(description: String): String? {
-        Regex("""(?i)^(?:Paid to|Received from|Refund from)\s+(.+)$""")
+        Regex("""(?i)^(?:Paid to|Received from|Refund from)\s+(.+?)(?:\s+UPI\b|\s+Paid by\b|\s+Received by\b|$)""")
             .find(description.trim())
-            ?.let { return it.groupValues[1].trim() }
+            ?.let { return it.groupValues[1].trim().trim(',', '.') }
 
         Regex("""(?i)UPI[/\-]([^/\-\s]+)""")
             .find(description)
