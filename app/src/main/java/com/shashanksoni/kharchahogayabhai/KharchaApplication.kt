@@ -13,8 +13,8 @@ class KharchaApplication : Application() {
     lateinit var container: AppContainer
         private set
 
-    /** Outlives any screen; used for startup work that must not be cancelled by navigation. */
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /** Outlives any screen; used for startup work and background SMS sync. */
+    val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()

@@ -32,6 +32,18 @@
     <string name="transactions_filter_money_in">Money in</string>
     <string name="transactions_empty">No transactions match these filters.</string>
     <string name="transactions_count_summary">%1$d transactions</string>
+    <string name="transactions_expand_day">Expand day</string>
+    <string name="transactions_collapse_day">Collapse day</string>
+    <string name="transactions_day_info">Day summary</string>
+    <string name="transactions_day_credit">Money in</string>
+    <string name="transactions_day_debit">Money out</string>
+    <string name="transactions_day_net">Net</string>
+    <string name="transactions_day_count">Transactions</string>
+    <string name="transactions_day_uncategorised">Still uncategorised</string>
+    <string name="transactions_day_profit">In profit for this day — you received more than you spent.</string>
+    <string name="transactions_day_loss">In loss for this day — you spent more than you received.</string>
+    <string name="transactions_day_even">Break even — money in and money out matched.</string>
+    <string name="transactions_pick_category">Choose category</string>
 
     <!-- Transaction detail -->
     <string name="detail_title">Transaction</string>
@@ -95,8 +107,18 @@
 
     <!-- Settings -->
     <string name="settings_import_title">Import</string>
-    <string name="settings_import_explanation">Bring in CSV or PDF statements, or scan past bank SMS. You will not need this often.</string>
+    <string name="settings_import_explanation">Bring in CSV or PDF statements, or open the import history. You will not need this often.</string>
     <string name="settings_open_import">Open import</string>
+    <string name="settings_sms_title">SMS transactions</string>
+    <string name="settings_sms_explanation">Bank and UPI alerts from Messages are filtered into your dashboard. Manual scan only reads messages after the last scan date.</string>
+    <string name="settings_sms_scan_new">Scan new SMS</string>
+    <string name="settings_sms_rescan_all">Rescan entire inbox</string>
+    <string name="settings_sms_last_scan">Last scan: %1$s</string>
+    <string name="settings_sms_never_scanned">Not scanned yet — the next scan will read the inbox from the start.</string>
+    <string name="settings_sms_listen_title">Scan when SMS arrives</string>
+    <string name="settings_sms_listen_explanation">Runs in the background when a new message arrives. Only messages after the last scan are processed.</string>
+    <string name="settings_sms_auto_title">Also scan when app opens</string>
+    <string name="settings_sms_auto_explanation">Catch up on any alerts missed while the phone was offline. Needs SMS permission.</string>
     <string name="settings_data_title">Data</string>
     <string name="settings_reset_explanation">Clears all transactions and import history from this device. You can import CSV, PDF or SMS again afterwards. This cannot be undone.</string>
     <string name="settings_reset_button">Reset dashboard data</string>

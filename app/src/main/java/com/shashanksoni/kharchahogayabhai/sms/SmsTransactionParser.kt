@@ -60,7 +60,7 @@ class SmsTransactionParser : TransactionParser<SmsParseInput> {
         }
 
         val status = when {
-            reference.isNullOrBlank() && merchant.isNullOrBlank() -> ParseStatus.PARTIAL
+            reference.isNullOrBlank() && merchant.isNullOrBlank() -> ParseStatus.PARTIALLY_PARSED
             else -> ParseStatus.PARSED
         }
 

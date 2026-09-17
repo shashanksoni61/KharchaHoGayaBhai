@@ -130,6 +130,7 @@ private fun KharchaNavHost(
             SettingsScreen(
                 viewModel = viewModel(factory = SettingsViewModel.factory(container)),
                 onOpenImport = { navController.navigate(KharchaDestination.Import.route) },
+                zone = container.zone,
                 contentPadding = contentPadding,
             )
         }

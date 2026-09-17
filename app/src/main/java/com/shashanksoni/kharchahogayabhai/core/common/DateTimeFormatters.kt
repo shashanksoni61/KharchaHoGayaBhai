@@ -38,6 +38,10 @@ object DateTimeFormatters {
     fun fullDate(instant: Instant, zone: ZoneId): String =
         DayMonthAndYear.format(instant.atZone(zone))
 
+    /** e.g. `17 September 2026, 3:14 PM`. */
+    fun fullDateTime(instant: Instant, zone: ZoneId): String =
+        "${fullDate(instant, zone)}, ${timeOfDay(instant, zone)}"
+
     /** e.g. `3:14 PM`. */
     fun timeOfDay(instant: Instant, zone: ZoneId): String = TimeOfDay.format(instant.atZone(zone))
 

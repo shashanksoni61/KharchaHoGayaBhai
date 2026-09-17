@@ -23,6 +23,7 @@ import com.shashanksoni.kharchahogayabhai.domain.usecase.ResetLocalDataUseCase
 import com.shashanksoni.kharchahogayabhai.pdf.PdfTextExtractor
 import com.shashanksoni.kharchahogayabhai.pdf.PdfTransactionParser
 import com.shashanksoni.kharchahogayabhai.sms.SmsInboxReader
+import com.shashanksoni.kharchahogayabhai.sms.SmsScanPreferences
 import com.shashanksoni.kharchahogayabhai.sms.SmsTransactionParser
 import java.time.Clock
 import java.time.ZoneId
@@ -35,6 +36,17 @@ class AppContainer(context: Context) {
     private val applicationContext: Context = context.applicationContext
     private val clock: Clock = Clock.systemUTC()
     val zone: ZoneId = ZoneId.systemDefault()
+
+    private val prefs by lazy {
+        applicationContext.getSharedPreferences(
+            RoomLabelRepository.PREFS_NAME,
+            Context.MODE_PRIVATE,
+        )
+    }
+
+    val smsScanPreferences: SmsScanPreferences by lazy {
+        SmsScanPreferences(prefs)
+    }
 
     private val database: KharchaDatabase by lazy {
         Room.databaseBuilder(
@@ -65,10 +77,7 @@ class AppContainer(context: Context) {
     val labelRepository: LabelRepository by lazy {
         RoomLabelRepository(
             labelDao = database.labelDao(),
-            prefs = applicationContext.getSharedPreferences(
-                RoomLabelRepository.PREFS_NAME,
-                Context.MODE_PRIVATE,
-            ),
+            prefs = prefs,
         )
     }
 
@@ -89,6 +98,7 @@ class AppContainer(context: Context) {
             database = database,
             transactionDao = database.transactionDao(),
             importBatchDao = database.importBatchDao(),
+            smsScanPreferences = smsScanPreferences,
         )
     }
 
@@ -120,6 +130,7 @@ class AppContainer(context: Context) {
             smsParser = SmsTransactionParser(),
             ingestor = transactionIngestor,
             importRepository = importRepository,
+            scanPreferences = smsScanPreferences,
             clock = clock,
         )
     }

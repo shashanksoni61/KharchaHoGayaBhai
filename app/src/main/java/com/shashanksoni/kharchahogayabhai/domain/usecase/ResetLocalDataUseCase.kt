@@ -1,9 +1,10 @@
 package com.shashanksoni.kharchahogayabhai.domain.usecase
 
+import androidx.room.withTransaction
 import com.shashanksoni.kharchahogayabhai.core.database.KharchaDatabase
 import com.shashanksoni.kharchahogayabhai.core.database.dao.ImportBatchDao
 import com.shashanksoni.kharchahogayabhai.core.database.dao.TransactionDao
-import androidx.room.withTransaction
+import com.shashanksoni.kharchahogayabhai.sms.SmsScanPreferences
 
 /**
  * Wipes transactions, sources, and import history so the dashboard starts empty.
@@ -14,6 +15,7 @@ class ResetLocalDataUseCase(
     private val database: KharchaDatabase,
     private val transactionDao: TransactionDao,
     private val importBatchDao: ImportBatchDao,
+    private val smsScanPreferences: SmsScanPreferences,
 ) {
 
     suspend operator fun invoke() {
@@ -21,5 +23,7 @@ class ResetLocalDataUseCase(
             transactionDao.deleteAllTransactions()
             importBatchDao.deleteAllBatches()
         }
+        // Next SMS scan should read the full inbox again.
+        smsScanPreferences.clearCursor()
     }
 }

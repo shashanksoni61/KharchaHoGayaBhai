@@ -13,7 +13,14 @@ class SmsInboxReader(
     private val appContext: Context,
 ) {
 
-    fun readInbox(limit: Int = DEFAULT_LIMIT): List<SmsMessage> {
+    /**
+     * @param afterExclusiveMillis when non-null, only messages with DATE strictly
+     * after this epoch millis are returned (incremental scan).
+     */
+    fun readInbox(
+        afterExclusiveMillis: Long? = null,
+        limit: Int = DEFAULT_LIMIT,
+    ): List<SmsMessage> {
         val uri: Uri = Telephony.Sms.Inbox.CONTENT_URI
         val projection = arrayOf(
             Telephony.Sms._ID,
@@ -21,12 +28,22 @@ class SmsInboxReader(
             Telephony.Sms.BODY,
             Telephony.Sms.DATE,
         )
+        val selection: String?
+        val selectionArgs: Array<String>?
+        if (afterExclusiveMillis != null && afterExclusiveMillis > 0L) {
+            selection = "${Telephony.Sms.DATE} > ?"
+            selectionArgs = arrayOf(afterExclusiveMillis.toString())
+        } else {
+            selection = null
+            selectionArgs = null
+        }
+
         val results = mutableListOf<SmsMessage>()
         appContext.contentResolver.query(
             uri,
             projection,
-            null,
-            null,
+            selection,
+            selectionArgs,
             "${Telephony.Sms.DATE} DESC",
         )?.use { cursor ->
             val idIndex = cursor.getColumnIndexOrThrow(Telephony.Sms._ID)

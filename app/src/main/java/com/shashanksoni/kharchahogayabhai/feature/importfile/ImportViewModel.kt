@@ -12,6 +12,7 @@ import com.shashanksoni.kharchahogayabhai.domain.model.ImportResult
 import com.shashanksoni.kharchahogayabhai.domain.repository.ImportRepository
 import com.shashanksoni.kharchahogayabhai.domain.usecase.ImportSmsInboxUseCase
 import com.shashanksoni.kharchahogayabhai.domain.usecase.ImportStatementFileUseCase
+import com.shashanksoni.kharchahogayabhai.domain.usecase.SmsScanMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -83,7 +84,10 @@ class ImportViewModel(
             isImporting.value = true
             errorMessage.value = null
             try {
-                val result = importSmsInboxUseCase()
+                val result = importSmsInboxUseCase(
+                    mode = SmsScanMode.INCREMENTAL,
+                    recordEmptyHistory = true,
+                )
                 lastResult.value = result
                 if (result.batch.errorMessage != null &&
                     result.batch.newCount == 0 &&

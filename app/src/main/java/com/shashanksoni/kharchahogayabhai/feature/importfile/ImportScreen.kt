@@ -61,9 +61,9 @@ fun ImportScreen(
     }
 
     val requestSmsPermission = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        if (granted) {
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        if (grants[Manifest.permission.READ_SMS] == true) {
             viewModel.importSmsInbox()
         } else {
             viewModel.reportSmsPermissionDenied()
@@ -130,7 +130,12 @@ fun ImportScreen(
                         if (granted) {
                             viewModel.importSmsInbox()
                         } else {
-                            requestSmsPermission.launch(Manifest.permission.READ_SMS)
+                            requestSmsPermission.launch(
+                                arrayOf(
+                                    Manifest.permission.READ_SMS,
+                                    Manifest.permission.RECEIVE_SMS,
+                                ),
+                            )
                         }
                     },
                     enabled = !uiState.isImporting,

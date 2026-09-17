@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.shashanksoni.kharchahogayabhai.core.common.DateTimeFormatters
 import com.shashanksoni.kharchahogayabhai.di.AppContainer
 import com.shashanksoni.kharchahogayabhai.domain.model.Category
+import com.shashanksoni.kharchahogayabhai.domain.model.Money
 import com.shashanksoni.kharchahogayabhai.domain.model.Transaction
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionFilter
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
@@ -37,10 +39,18 @@ data class TransactionDayGroup(
     val date: LocalDate,
     val header: String,
     val entries: List<TransactionEntry>,
-)
+    val creditTotal: Money,
+    val debitTotal: Money,
+    val uncategorisedCount: Int,
+) {
+    val net: Money get() = creditTotal - debitTotal
+    val transactionCount: Int get() = entries.size
+}
 
 data class TransactionListUiState(
     val dayGroups: List<TransactionDayGroup> = emptyList(),
+    val categories: List<Category> = emptyList(),
+    val collapsedDates: Set<LocalDate> = emptySet(),
     val searchQuery: String = "",
     val selectedType: TransactionType? = null,
     val selectedSource: TransactionSource? = null,
@@ -48,6 +58,8 @@ data class TransactionListUiState(
 ) {
     val transactionCount: Int get() = dayGroups.sumOf { it.entries.size }
     val isEmpty: Boolean get() = !isLoading && dayGroups.isEmpty()
+
+    fun isCollapsed(date: LocalDate): Boolean = date in collapsedDates
 }
 
 /**
@@ -56,22 +68,26 @@ data class TransactionListUiState(
  */
 class TransactionListViewModel(
     private val transactionRepository: TransactionRepository,
-    categoryRepository: CategoryRepository,
+    private val categoryRepository: CategoryRepository,
     private val zone: ZoneId,
     private val clock: Clock = Clock.systemUTC(),
 ) : ViewModel() {
 
     private val filter = MutableStateFlow(TransactionFilter.NONE)
+    private val collapsedDates = MutableStateFlow<Set<LocalDate>>(emptySet())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<TransactionListUiState> = combine(
         filter,
         filter.flatMapLatest(transactionRepository::observeTransactions),
         categoryRepository.observeCategories(),
-    ) { activeFilter, transactions, categories ->
+        collapsedDates,
+    ) { activeFilter, transactions, categories, collapsed ->
         val categoriesById = categories.associateBy { it.id }
         TransactionListUiState(
             dayGroups = groupByDay(transactions, categoriesById),
+            categories = categories,
+            collapsedDates = collapsed,
             searchQuery = activeFilter.searchQuery.orEmpty(),
             selectedType = activeFilter.type,
             selectedSource = activeFilter.source,
@@ -96,6 +112,18 @@ class TransactionListViewModel(
         filter.update { it.copy(source = if (it.source == source) null else source) }
     }
 
+    fun toggleDayCollapsed(date: LocalDate) {
+        collapsedDates.update { current ->
+            if (date in current) current - date else current + date
+        }
+    }
+
+    fun setCategory(transactionId: Long, categoryId: Long?) {
+        viewModelScope.launch {
+            transactionRepository.setCategory(transactionId, categoryId)
+        }
+    }
+
     private fun groupByDay(
         transactions: List<Transaction>,
         categoriesById: Map<Long, Category>,
@@ -104,6 +132,12 @@ class TransactionListViewModel(
         return transactions
             .groupBy { DateTimeFormatters.localDateOf(it.transactionDate, zone) }
             .map { (date, dayTransactions) ->
+                val credits = dayTransactions
+                    .filter { it.type == TransactionType.CREDIT }
+                    .map { it.amount.absoluteValue }
+                val debits = dayTransactions
+                    .filter { it.type == TransactionType.DEBIT }
+                    .map { it.amount.absoluteValue }
                 TransactionDayGroup(
                     date = date,
                     header = DateTimeFormatters.dayHeader(date, today),
@@ -113,6 +147,9 @@ class TransactionListViewModel(
                             category = transaction.categoryId?.let(categoriesById::get),
                         )
                     },
+                    creditTotal = Money.sum(credits),
+                    debitTotal = Money.sum(debits),
+                    uncategorisedCount = dayTransactions.count { it.categoryId == null },
                 )
             }
             .sortedByDescending { it.date }

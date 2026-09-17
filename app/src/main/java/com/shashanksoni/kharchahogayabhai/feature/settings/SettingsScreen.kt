@@ -1,5 +1,9 @@
 package com.shashanksoni.kharchahogayabhai.feature.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Sms
 import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
@@ -23,6 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,24 +38,76 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shashanksoni.kharchahogayabhai.R
+import com.shashanksoni.kharchahogayabhai.core.common.DateTimeFormatters
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionLabel
 import com.shashanksoni.kharchahogayabhai.ui.component.SectionCard
 import com.shashanksoni.kharchahogayabhai.ui.util.CategoryVisuals
+import java.time.ZoneId
 
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onOpenImport: () -> Unit,
+    zone: ZoneId,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var showResetDialog by remember { mutableStateOf(false) }
     var showCreateLabelDialog by remember { mutableStateOf(false) }
+    var pendingAction by remember { mutableStateOf<SmsPermissionAction?>(null) }
+
+    val requestSmsPermissions = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        val action = pendingAction
+        pendingAction = null
+        val allowed = grants[Manifest.permission.READ_SMS] == true
+        if (allowed && action != null) {
+            when (action) {
+                SmsPermissionAction.ManualScan -> viewModel.scanNewSms()
+                SmsPermissionAction.FullRescan -> viewModel.rescanAllSms()
+                SmsPermissionAction.EnableBackground ->
+                    viewModel.setListenSmsInBackground(true)
+            }
+        } else if (action != null) {
+            viewModel.reportSmsPermissionDenied()
+            if (action == SmsPermissionAction.EnableBackground) {
+                viewModel.setListenSmsInBackground(false)
+            }
+        }
+    }
+
+    fun ensureSmsPermission(action: SmsPermissionAction) {
+        val readGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_SMS,
+        ) == PackageManager.PERMISSION_GRANTED
+        val receiveGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECEIVE_SMS,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (readGranted && (action != SmsPermissionAction.EnableBackground || receiveGranted)) {
+            when (action) {
+                SmsPermissionAction.ManualScan -> viewModel.scanNewSms()
+                SmsPermissionAction.FullRescan -> viewModel.rescanAllSms()
+                SmsPermissionAction.EnableBackground ->
+                    viewModel.setListenSmsInBackground(true)
+            }
+            return
+        }
+        pendingAction = action
+        requestSmsPermissions.launch(
+            arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS),
+        )
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -58,8 +116,74 @@ fun SettingsScreen(
     ) {
         item {
             SectionCard(
-                title = stringResource(R.string.settings_import_title),
+                title = stringResource(R.string.settings_sms_title),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_sms_explanation),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = uiState.lastSmsScanAt?.let { instant ->
+                        stringResource(
+                            R.string.settings_sms_last_scan,
+                            DateTimeFormatters.fullDateTime(instant, zone),
+                        )
+                    } ?: stringResource(R.string.settings_sms_never_scanned),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(
+                    onClick = { ensureSmsPermission(SmsPermissionAction.ManualScan) },
+                    enabled = !uiState.isScanningSms && !uiState.isResetting,
+                ) {
+                    if (uiState.isScanningSms) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(Icons.Rounded.Sms, contentDescription = null)
+                    }
+                    Text(
+                        text = stringResource(R.string.settings_sms_scan_new),
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+                TextButton(
+                    onClick = { ensureSmsPermission(SmsPermissionAction.FullRescan) },
+                    enabled = !uiState.isScanningSms && !uiState.isResetting,
+                ) {
+                    Text(stringResource(R.string.settings_sms_rescan_all))
+                }
+                SettingSwitchRow(
+                    title = stringResource(R.string.settings_sms_listen_title),
+                    explanation = stringResource(R.string.settings_sms_listen_explanation),
+                    checked = uiState.listenSmsInBackground,
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            ensureSmsPermission(SmsPermissionAction.EnableBackground)
+                        } else {
+                            viewModel.setListenSmsInBackground(false)
+                        }
+                    },
+                )
+                SettingSwitchRow(
+                    title = stringResource(R.string.settings_sms_auto_title),
+                    explanation = stringResource(R.string.settings_sms_auto_explanation),
+                    checked = uiState.autoSmsScanOnOpen,
+                    onCheckedChange = viewModel::setAutoSmsScanOnOpen,
+                )
+            }
+        }
+
+        item {
+            SectionCard(
+                title = stringResource(R.string.settings_import_title),
+                modifier = Modifier.padding(horizontal = 16.dp),
             ) {
                 Text(
                     text = stringResource(R.string.settings_import_explanation),
@@ -88,7 +212,7 @@ fun SettingsScreen(
                 )
                 Button(
                     onClick = { showResetDialog = true },
-                    enabled = !uiState.isResetting,
+                    enabled = !uiState.isResetting && !uiState.isScanningSms,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
                         contentColor = MaterialTheme.colorScheme.onError,
@@ -172,6 +296,36 @@ fun SettingsScreen(
             },
             onDismiss = { showCreateLabelDialog = false },
         )
+    }
+}
+
+private enum class SmsPermissionAction {
+    ManualScan,
+    FullRescan,
+    EnableBackground,
+}
+
+@Composable
+private fun SettingSwitchRow(
+    title: String,
+    explanation: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = explanation,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
