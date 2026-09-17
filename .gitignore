@@ -13,7 +13,7 @@ local.properties
 PhonePe_Statement_Aug2026_Sept2026.csv
 gpay_statement_*.pdf
 *_Statement_*.csv
-*.apk
+
 *.ap_
 *.aab
 
