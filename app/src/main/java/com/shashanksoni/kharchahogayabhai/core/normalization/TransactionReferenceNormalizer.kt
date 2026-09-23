@@ -24,6 +24,7 @@ object TransactionReferenceNormalizer {
         "UPI", "REF", "REFNO", "REFERENCE", "NO", "NUM", "NUMBER",
         "TXN", "TRANSACTION", "TRANS", "ID", "IDNO",
         "UTR", "RRN", "IMPS", "NEFT", "RTGS", "NPCI", "SEQ", "CHQ", "CHEQUE",
+        "P2M", "P2A", "P2P",
     )
 
     /**

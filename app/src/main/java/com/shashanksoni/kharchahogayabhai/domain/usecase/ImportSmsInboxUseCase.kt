@@ -9,11 +9,11 @@ import com.shashanksoni.kharchahogayabhai.domain.model.ParsedTransaction
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import com.shashanksoni.kharchahogayabhai.domain.repository.ImportRepository
 import com.shashanksoni.kharchahogayabhai.sms.SmsInboxReader
+import com.shashanksoni.kharchahogayabhai.sms.SmsMessage
 import com.shashanksoni.kharchahogayabhai.sms.SmsParseInput
 import com.shashanksoni.kharchahogayabhai.sms.SmsScanPreferences
 import com.shashanksoni.kharchahogayabhai.sms.SmsTransactionParser
 import java.time.Clock
-import java.time.Instant
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -51,9 +51,9 @@ class ImportSmsInboxUseCase(
             scanPreferences.clearCursor()
         }
 
-        val afterMillis = scanPreferences.lastScannedAtMillis().takeIf { it > 0L }
+        val cursor = scanPreferences.scanCursor()
         val messages = try {
-            inboxReader.readInbox(afterExclusiveMillis = afterMillis)
+            inboxReader.readInbox(afterExclusive = cursor)
         } catch (error: SecurityException) {
             return failed(
                 message = "SMS permission is required to read transaction alerts.",
@@ -66,15 +66,18 @@ class ImportSmsInboxUseCase(
             )
         }
 
-        val newestRead = messages.maxOfOrNull { it.receivedAt }
+        // Newest by provider date, then inbox id — keeps same-timestamp bursts ordered.
+        val newestReadMessage = messages.maxWithOrNull(
+            compareBy({ it.receivedAt }, { it.id }),
+        )
         if (messages.isEmpty()) {
             // Caught up — bump cursor to now so we do not keep re-querying forever
             // when the user opens the app with no new SMS.
-            if (mode == SmsScanMode.INCREMENTAL && afterMillis != null) {
+            if (mode == SmsScanMode.INCREMENTAL && cursor != null) {
                 scanPreferences.advanceCursorTo(clock.instant())
             }
             return failed(
-                message = if (afterMillis == null) {
+                message = if (cursor == null) {
                     "No SMS messages found on this device."
                 } else {
                     "No new SMS since the last scan."
@@ -91,7 +94,7 @@ class ImportSmsInboxUseCase(
         }
 
         // Always advance past what we inspected, including OTPs we skipped.
-        newestRead?.let(scanPreferences::advanceCursorTo)
+        newestReadMessage?.let(scanPreferences::advanceCursorPast)
 
         if (parsed.isEmpty()) {
             return failed(
@@ -100,7 +103,7 @@ class ImportSmsInboxUseCase(
             )
         }
 
-        return finishImport(parsed, newestRead)
+        return finishImport(parsed, newestReadMessage)
     }
 
     /**
@@ -132,7 +135,7 @@ class ImportSmsInboxUseCase(
 
     private suspend fun finishImport(
         parsed: List<ParsedTransaction>,
-        newestRead: Instant?,
+        newestReadMessage: SmsMessage?,
     ): ImportResult {
         val outcomes = ingestor.ingest(parsed)
         val newCount = outcomes.count { it == IngestOutcome.CREATED }
@@ -148,7 +151,7 @@ class ImportSmsInboxUseCase(
             else -> ImportBatchStatus.SUCCESS
         }
 
-        newestRead?.let(scanPreferences::advanceCursorTo)
+        newestReadMessage?.let(scanPreferences::advanceCursorPast)
 
         val batch = ImportBatch(
             fileName = "SMS inbox",

@@ -127,7 +127,7 @@ class AppContainer(context: Context) {
     val importSmsInbox: ImportSmsInboxUseCase by lazy {
         ImportSmsInboxUseCase(
             inboxReader = SmsInboxReader(applicationContext),
-            smsParser = SmsTransactionParser(),
+            smsParser = SmsTransactionParser(zone = zone),
             ingestor = transactionIngestor,
             importRepository = importRepository,
             scanPreferences = smsScanPreferences,

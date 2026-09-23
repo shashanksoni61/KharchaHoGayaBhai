@@ -14,11 +14,12 @@ class SmsInboxReader(
 ) {
 
     /**
-     * @param afterExclusiveMillis when non-null, only messages with DATE strictly
-     * after this epoch millis are returned (incremental scan).
+     * @param afterExclusive when non-null, only messages strictly after this
+     * (date, id) cursor are returned so same-timestamp bursts from one sender
+     * are not skipped.
      */
     fun readInbox(
-        afterExclusiveMillis: Long? = null,
+        afterExclusive: SmsScanCursor? = null,
         limit: Int = DEFAULT_LIMIT,
     ): List<SmsMessage> {
         val uri: Uri = Telephony.Sms.Inbox.CONTENT_URI
@@ -30,9 +31,16 @@ class SmsInboxReader(
         )
         val selection: String?
         val selectionArgs: Array<String>?
-        if (afterExclusiveMillis != null && afterExclusiveMillis > 0L) {
-            selection = "${Telephony.Sms.DATE} > ?"
-            selectionArgs = arrayOf(afterExclusiveMillis.toString())
+        if (afterExclusive != null && afterExclusive.dateMillis > 0L) {
+            // (date > last) OR (date = last AND _id > lastId)
+            selection =
+                "(${Telephony.Sms.DATE} > ?) OR " +
+                    "(${Telephony.Sms.DATE} = ? AND ${Telephony.Sms._ID} > ?)"
+            selectionArgs = arrayOf(
+                afterExclusive.dateMillis.toString(),
+                afterExclusive.dateMillis.toString(),
+                afterExclusive.smsId.toString(),
+            )
         } else {
             selection = null
             selectionArgs = null
@@ -44,7 +52,7 @@ class SmsInboxReader(
             projection,
             selection,
             selectionArgs,
-            "${Telephony.Sms.DATE} DESC",
+            "${Telephony.Sms.DATE} ASC, ${Telephony.Sms._ID} ASC",
         )?.use { cursor ->
             val idIndex = cursor.getColumnIndexOrThrow(Telephony.Sms._ID)
             val addressIndex = cursor.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)

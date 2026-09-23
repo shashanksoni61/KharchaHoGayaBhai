@@ -36,6 +36,13 @@ object StatementDateParser {
         DateTimeFormatter.ofPattern("d/M/uuuu H:m", Locale.ENGLISH),
         DateTimeFormatter.ofPattern("d-M-uuuu H:m:s", Locale.ENGLISH),
         DateTimeFormatter.ofPattern("d-M-uuuu H:m", Locale.ENGLISH),
+        // Axis / many banks: "22-09-26, 20:41:05"
+        DateTimeFormatter.ofPattern("d-M-uu, H:m:s", Locale.ENGLISH),
+        DateTimeFormatter.ofPattern("d-M-uu H:m:s", Locale.ENGLISH),
+        DateTimeFormatter.ofPattern("d/M/uu, H:m:s", Locale.ENGLISH),
+        DateTimeFormatter.ofPattern("d/M/uu H:m:s", Locale.ENGLISH),
+        DateTimeFormatter.ofPattern("d-M-uu, H:m", Locale.ENGLISH),
+        DateTimeFormatter.ofPattern("d-M-uu H:m", Locale.ENGLISH),
         DateTimeFormatter.ofPattern("uuuu-M-d H:m:s", Locale.ENGLISH),
         DateTimeFormatter.ofPattern("uuuu-M-d'T'H:m:s", Locale.ENGLISH),
         DateTimeFormatter.ofPattern("d MMM uuuu H:m", Locale.ENGLISH),

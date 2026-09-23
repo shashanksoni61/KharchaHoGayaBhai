@@ -9,10 +9,13 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 class SmsTransactionParserTest {
 
-    private val parser = SmsTransactionParser()
+    private val zone = ZoneId.of("Asia/Kolkata")
+    private val parser = SmsTransactionParser(zone = zone)
 
     @Test
     fun parsesHdfcUpiDebitWithRef() {
@@ -41,6 +44,76 @@ class SmsTransactionParserTest {
     }
 
     @Test
+    fun parsesAxisMultilineDebitWithBodyDateTime() {
+        val body = """
+            INR 30.00 debited
+            A/c no. XX2073
+            22-09-26, 20:41:05
+            UPI/P2M/347484353597/SHREE MEDICAL STORE
+            Not you? SMS BLOCKUPI Cust ID to 919951860002
+            Axis Bank
+        """.trimIndent()
+        val parsed = parser.parse(single(body)).single()
+
+        assertEquals(3_000L, parsed.amount.minorUnits)
+        assertEquals(TransactionType.DEBIT, parsed.type)
+        assertEquals("347484353597", parsed.referenceNumber)
+        assertEquals("XX2073", parsed.accountIdentifier)
+        assertEquals("SHREE MEDICAL STORE", parsed.merchantName)
+        assertEquals(PaymentMethod.UPI, parsed.paymentMethod)
+        assertEquals(ParseStatus.PARSED, parsed.parseStatus)
+        val expected = LocalDateTime.of(2026, 9, 22, 20, 41, 5)
+            .atZone(zone)
+            .toInstant()
+        assertEquals(expected, parsed.transactionDate)
+    }
+
+    @Test
+    fun parsesMultipleMessagesFromSameSenderIndependently() {
+        val input = SmsParseInput(
+            listOf(
+                message(
+                    body = """
+                        INR 30.00 debited
+                        A/c no. XX2073
+                        22-09-26, 10:00:00
+                        UPI/P2M/111111111111/STORE ONE
+                        Axis Bank
+                    """.trimIndent(),
+                    id = 10L,
+                    address = "AX-AXISBK",
+                ),
+                message(
+                    body = """
+                        INR 150.50 debited
+                        A/c no. XX2073
+                        22-09-26, 11:30:00
+                        UPI/P2M/222222222222/STORE TWO
+                        Axis Bank
+                    """.trimIndent(),
+                    id = 11L,
+                    address = "AX-AXISBK",
+                ),
+                message(
+                    body = """
+                        INR 1,000.00 credited
+                        A/c no. XX2073
+                        21-09-26, 09:15:00
+                        UPI/P2A/333333333333/SALARY CREDIT
+                        Axis Bank
+                    """.trimIndent(),
+                    id = 12L,
+                    address = "AX-AXISBK",
+                ),
+            ),
+        )
+        val parsed = parser.parse(input)
+        assertEquals(3, parsed.size)
+        assertEquals(listOf("111111111111", "222222222222", "333333333333"), parsed.map { it.referenceNumber })
+        assertEquals(TransactionType.CREDIT, parsed[2].type)
+    }
+
+    @Test
     fun skipsNonTransactionSms() {
         val body = "Your OTP for login is 482910. Do not share with anyone."
         val input = SmsParseInput(listOf(message(body)))
@@ -60,9 +133,13 @@ class SmsTransactionParserTest {
     private fun single(body: String, id: Long = 101L) =
         SmsParseInput(listOf(message(body, id)))
 
-    private fun message(body: String, id: Long = 101L) = SmsMessage(
+    private fun message(
+        body: String,
+        id: Long = 101L,
+        address: String = "HDFCBK",
+    ) = SmsMessage(
         id = id,
-        address = "HDFCBK",
+        address = address,
         body = body,
         receivedAt = Instant.parse("2026-09-15T10:30:00Z"),
     )

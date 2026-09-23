@@ -1,5 +1,6 @@
 package com.shashanksoni.kharchahogayabhai.sms
 
+import com.shashanksoni.kharchahogayabhai.core.common.StatementDateParser
 import com.shashanksoni.kharchahogayabhai.core.normalization.TransactionReferenceNormalizer
 import com.shashanksoni.kharchahogayabhai.domain.model.Money
 import com.shashanksoni.kharchahogayabhai.domain.model.ParseStatus
@@ -8,6 +9,8 @@ import com.shashanksoni.kharchahogayabhai.domain.model.PaymentMethod
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionType
 import com.shashanksoni.kharchahogayabhai.domain.parser.TransactionParser
+import java.time.Instant
+import java.time.ZoneId
 import java.util.Locale
 
 /**
@@ -18,8 +21,13 @@ import java.util.Locale
  *   not ingested twice
  * - [ParsedTransaction.referenceNumber] = UPI/UTR/RRN when present, so a later
  *   CSV/PDF row with the same id merges instead of double-counting
+ *
+ * Transaction date prefers a timestamp printed in the body (e.g. Axis
+ * `22-09-26, 20:41:05`) over the SMS provider receive time.
  */
-class SmsTransactionParser : TransactionParser<SmsParseInput> {
+class SmsTransactionParser(
+    private val zone: ZoneId = ZoneId.systemDefault(),
+) : TransactionParser<SmsParseInput> {
 
     override val source: TransactionSource = TransactionSource.SMS
     override val name: String = "Indian bank / UPI SMS"
@@ -40,12 +48,13 @@ class SmsTransactionParser : TransactionParser<SmsParseInput> {
         val account = ACCOUNT_MASK.find(body)?.groupValues?.getOrNull(1)
         val paymentMethod = detectPaymentMethod(body)
         val merchant = extractMerchant(body)
+        val transactionDate = extractBodyDateTime(body) ?: message.receivedAt
 
         if (amount == null || type == null) {
             return ParsedTransaction(
                 amount = amount ?: Money.zero(),
                 type = type ?: TransactionType.DEBIT,
-                transactionDate = message.receivedAt,
+                transactionDate = transactionDate,
                 description = body.take(240),
                 merchantName = merchant,
                 referenceNumber = reference,
@@ -67,7 +76,7 @@ class SmsTransactionParser : TransactionParser<SmsParseInput> {
         return ParsedTransaction(
             amount = amount,
             type = type,
-            transactionDate = message.receivedAt,
+            transactionDate = transactionDate,
             description = body.take(240),
             merchantName = merchant,
             referenceNumber = reference,
@@ -109,12 +118,17 @@ class SmsTransactionParser : TransactionParser<SmsParseInput> {
     }
 
     private fun extractReference(body: String): String? {
+        UPI_PATH.find(body)?.groupValues?.getOrNull(1)?.let { ref ->
+            TransactionReferenceNormalizer.normalize(ref)?.let { return it }
+        }
         REFERENCE_CAPTURE.findAll(body).forEach { match ->
             val candidate = match.groupValues[1]
             TransactionReferenceNormalizer.normalize(candidate)?.let { return it }
             TransactionReferenceNormalizer.normalize("UPI Ref $candidate")?.let { return it }
         }
-        // PhonePe / Paytm style bare txn ids
+        UPI_PATH.find(body)?.value?.let { path ->
+            TransactionReferenceNormalizer.normalize(path)?.let { return it }
+        }
         PHONEPE_TXN.find(body)?.value?.let { return it }
         return null
     }
@@ -135,10 +149,20 @@ class SmsTransactionParser : TransactionParser<SmsParseInput> {
     }
 
     private fun extractMerchant(body: String): String? {
+        UPI_PATH.find(body)?.groupValues?.getOrNull(2)?.trim()
+            ?.takeIf { it.length in 2..64 }
+            ?.let { return cleanMerchant(it) }
         MERCHANT_PATTERNS.forEach { pattern ->
             pattern.find(body)?.groupValues?.getOrNull(1)?.trim()
                 ?.takeIf { it.length in 2..64 }
                 ?.let { return cleanMerchant(it) }
+        }
+        return null
+    }
+
+    private fun extractBodyDateTime(body: String): Instant? {
+        BODY_DATE_TIME.find(body)?.value?.let { raw ->
+            StatementDateParser.parseToInstant(raw, zone)?.let { return it }
         }
         return null
     }
@@ -169,12 +193,24 @@ class SmsTransactionParser : TransactionParser<SmsParseInput> {
         )
         private val SPENT_HINT = Regex("""\b(spent|purchase)\b""", RegexOption.IGNORE_CASE)
         private val UPI_HINT = Regex("""\bUPI\b""", RegexOption.IGNORE_CASE)
-        private val ACCOUNT_MASK = Regex("""(?:a/?c|acct|account)[^\dX*]*([X*]{2,}\d{2,}|\d{4})""", RegexOption.IGNORE_CASE)
+        private val ACCOUNT_MASK = Regex(
+            """(?:a/?c|acct|account)(?:\s*no\.?)?[^\dX*]*([X*]{2,}\d{2,}|\d{4})""",
+            RegexOption.IGNORE_CASE,
+        )
+        /** Axis-style: `UPI/P2M/347484353597/SHREE MEDICAL STORE` */
+        private val UPI_PATH = Regex(
+            """\bUPI/[A-Za-z0-9]+/(\d{6,})/([^\n\r]+)""",
+            RegexOption.IGNORE_CASE,
+        )
         private val REFERENCE_CAPTURE = Regex(
             """(?:UPI\s*(?:Ref(?:erence)?(?:\s*No\.?)?|Txn(?:n)?(?:\s*ID)?|ID)?|UTR|RRN|Ref(?:erence)?(?:\s*No\.?)?|Txn(?:n)?(?:\s*ID)?)\s*[:\-]?\s*([A-Z0-9]{6,})""",
             RegexOption.IGNORE_CASE,
         )
         private val PHONEPE_TXN = Regex("""\bT\d{15,}\b""")
+        /** Prefer body stamp over SMS receive time when banks print one. */
+        private val BODY_DATE_TIME = Regex(
+            """\b(\d{1,2}[-/]\d{1,2}[-/]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\b""",
+        )
         private val MERCHANT_PATTERNS = listOf(
             Regex("""(?:to|at|towards)\s+VPA\s+([^\s,]+@[^\s,]+)""", RegexOption.IGNORE_CASE),
             Regex("""(?:to|at|towards)\s+([A-Za-z0-9][A-Za-z0-9 .&'\-]{1,40}?)(?:\s+on\s|\s+UPI|\s+Ref|\s+Info|\.|$)""", RegexOption.IGNORE_CASE),
