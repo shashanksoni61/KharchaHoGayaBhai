@@ -177,6 +177,7 @@ private fun KharchaNavHost(
                     factory = TransactionDetailViewModel.factory(container, transactionId),
                 ),
                 zone = container.zone,
+                onHidden = { navController.navigateUp() },
                 contentPadding = contentPadding,
             )
         }

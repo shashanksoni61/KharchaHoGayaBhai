@@ -22,6 +22,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,6 +60,7 @@ import java.time.ZoneId
 fun TransactionDetailScreen(
     viewModel: TransactionDetailViewModel,
     zone: ZoneId,
+    onHidden: () -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -92,6 +94,10 @@ fun TransactionDetailScreen(
                 onAddCustomLabelClick = { isCreatingLabel = true },
                 labelError = uiState.labelError,
                 hideIncome = hideIncome,
+                onSetIgnored = { ignored ->
+                    viewModel.setIgnored(ignored)
+                    if (ignored) onHidden()
+                },
                 modifier = modifier,
                 contentPadding = contentPadding,
             )
@@ -132,6 +138,7 @@ private fun TransactionDetailContent(
     onAddCustomLabelClick: () -> Unit,
     labelError: String?,
     hideIncome: Boolean,
+    onSetIgnored: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -174,6 +181,17 @@ private fun TransactionDetailContent(
                     text = stringResource(R.string.detail_promotional),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
+            OutlinedButton(onClick = { onSetIgnored(!transaction.isIgnored) }) {
+                Text(
+                    text = stringResource(
+                        if (transaction.isIgnored) {
+                            R.string.detail_restore_transaction
+                        } else {
+                            R.string.detail_mark_not_a_transaction
+                        },
+                    ),
                 )
             }
         }

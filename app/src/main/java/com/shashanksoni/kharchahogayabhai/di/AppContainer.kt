@@ -79,6 +79,7 @@ class AppContainer(context: Context) {
                 KharchaMigrations.MIGRATION_1_2,
                 KharchaMigrations.MIGRATION_2_3,
                 KharchaMigrations.MIGRATION_3_4,
+                KharchaMigrations.MIGRATION_4_5,
             )
             .build()
     }

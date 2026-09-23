@@ -40,6 +40,7 @@ class TransactionMerger(
         categoryId = existing.categoryId ?: incoming.categoryId,
         parseStatus = preferCompleteParseStatus(existing.parseStatus, incoming.parseStatus),
         isPromotional = mergePromotional(existing, incoming),
+        isIgnored = existing.isIgnored,
         notes = existing.notes ?: incoming.notes,
         updatedAt = clock.instant(),
     )

@@ -46,4 +46,7 @@ interface TransactionRepository {
 
     /** Passing null clears the category. */
     suspend fun setCategory(transactionId: Long, categoryId: Long?)
+
+    /** Hide or restore a row the user marked as not a payment. */
+    suspend fun setIgnored(transactionId: Long, ignored: Boolean)
 }

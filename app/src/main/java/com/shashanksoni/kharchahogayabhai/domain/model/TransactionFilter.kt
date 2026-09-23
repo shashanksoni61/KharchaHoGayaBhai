@@ -20,6 +20,7 @@ data class TransactionFilter(
     /** Inclusive ceiling, in minor units (paise). */
     val maxAmountMinorUnits: Long? = null,
     val excludePromotional: Boolean = false,
+    val includeIgnored: Boolean = false,
     val uncategorisedOnly: Boolean = false,
 ) {
     val isActive: Boolean

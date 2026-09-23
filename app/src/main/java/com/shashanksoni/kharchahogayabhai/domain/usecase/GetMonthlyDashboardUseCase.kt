@@ -95,6 +95,7 @@ class GetMonthlyDashboardUseCase(
         var expenseCount = 0
 
         summaries.forEach { summary ->
+            if (summary.amount.currencyCode != currencyCode) return@forEach
             when (summary.type) {
                 TransactionType.CREDIT -> {
                     income += summary.amount

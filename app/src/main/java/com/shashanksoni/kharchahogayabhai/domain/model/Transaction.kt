@@ -42,6 +42,8 @@ data class Transaction(
      * and excluded from money-in / money-out totals.
      */
     val isPromotional: Boolean = false,
+    /** User hid this row. It stays stored but leaves the list and dashboard. */
+    val isIgnored: Boolean = false,
     val notes: String? = null,
     val createdAt: Instant,
     val updatedAt: Instant,
@@ -55,7 +57,7 @@ data class Transaction(
 
     val isDebit: Boolean get() = type == TransactionType.DEBIT
 
-    val countsTowardTotals: Boolean get() = !isPromotional
+    val countsTowardTotals: Boolean get() = !isPromotional && !isIgnored
 
     companion object {
         const val UNSAVED_ID = 0L

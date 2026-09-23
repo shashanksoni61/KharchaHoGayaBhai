@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,6 +47,7 @@ fun TransactionRow(
     modifier: Modifier = Modifier,
     categories: List<Category> = emptyList(),
     onCategorySelected: ((Long?) -> Unit)? = null,
+    onSetIgnored: ((Boolean) -> Unit)? = null,
     hideIncome: Boolean = false,
 ) {
     Row(
@@ -89,6 +92,13 @@ fun TransactionRow(
                         color = MaterialTheme.colorScheme.tertiary,
                     )
                 }
+                if (transaction.isIgnored) {
+                    Text(
+                        text = stringResource(R.string.transactions_hidden),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
                 SourceBadge(source = transaction.primarySource)
             }
         }
@@ -106,6 +116,51 @@ fun TransactionRow(
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (onSetIgnored != null) {
+            IgnoreMenu(
+                ignored = transaction.isIgnored,
+                onSetIgnored = onSetIgnored,
+            )
+        }
+    }
+}
+
+@Composable
+private fun IgnoreMenu(
+    ignored: Boolean,
+    onSetIgnored: (Boolean) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = Icons.Rounded.MoreVert,
+                contentDescription = stringResource(R.string.transactions_mark_not_a_transaction),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        stringResource(
+                            if (ignored) {
+                                R.string.transactions_restore_transaction
+                            } else {
+                                R.string.transactions_mark_not_a_transaction
+                            },
+                        ),
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onSetIgnored(!ignored)
+                },
             )
         }
     }

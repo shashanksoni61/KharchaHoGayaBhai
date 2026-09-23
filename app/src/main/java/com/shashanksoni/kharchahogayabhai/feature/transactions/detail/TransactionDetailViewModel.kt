@@ -55,6 +55,12 @@ class TransactionDetailViewModel(
         initialValue = TransactionDetailUiState(),
     )
 
+    fun setIgnored(ignored: Boolean) {
+        viewModelScope.launch {
+            transactionRepository.setIgnored(transactionId, ignored)
+        }
+    }
+
     fun changeCategory(categoryId: Long?) {
         viewModelScope.launch {
             transactionRepository.setCategory(transactionId, categoryId)

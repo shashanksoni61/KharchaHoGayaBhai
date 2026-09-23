@@ -80,6 +80,12 @@
     <string name="transactions_month_even">Break even — money in and money out matched this month.</string>
     <string name="transactions_pick_category">Choose category</string>
     <string name="transactions_promo">Not a payment</string>
+    <string name="transactions_hidden">Hidden</string>
+    <string name="transactions_mark_not_a_transaction">Not a transaction</string>
+    <string name="transactions_restore_transaction">Show in list again</string>
+    <string name="transactions_filter_show_hidden">Show items you hid</string>
+    <string name="detail_mark_not_a_transaction">Not a transaction — hide from list and dashboard</string>
+    <string name="detail_restore_transaction">This is a transaction — show it again</string>
     <string name="transactions_sort_high_to_low">Largest amount first</string>
     <string name="transactions_sort_low_to_high">Smallest amount first</string>
 

@@ -36,6 +36,7 @@ class RoomTransactionRepository(
             minAmountMinor = filter.minAmountMinorUnits,
             maxAmountMinor = filter.maxAmountMinorUnits,
             excludePromotional = if (filter.excludePromotional) 1 else 0,
+            includeIgnored = if (filter.includeIgnored) 1 else 0,
             uncategorisedOnly = if (filter.uncategorisedOnly) 1 else 0,
         ).map { entities -> entities.map { it.toDomain() } }
 
@@ -77,6 +78,14 @@ class RoomTransactionRepository(
         transactionDao.updateCategory(
             transactionId = transactionId,
             categoryId = categoryId,
+            updatedAtMillis = clock.millis(),
+        )
+    }
+
+    override suspend fun setIgnored(transactionId: Long, ignored: Boolean) {
+        transactionDao.updateIgnored(
+            transactionId = transactionId,
+            ignored = ignored,
             updatedAtMillis = clock.millis(),
         )
     }

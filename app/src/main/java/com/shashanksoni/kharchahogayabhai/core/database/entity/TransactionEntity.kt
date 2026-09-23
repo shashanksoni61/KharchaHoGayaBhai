@@ -75,6 +75,8 @@ data class TransactionEntity(
     val parseStatus: ParseStatus,
     @ColumnInfo(name = "is_promotional", defaultValue = "0")
     val isPromotional: Boolean = false,
+    @ColumnInfo(name = "is_ignored", defaultValue = "0")
+    val isIgnored: Boolean = false,
     val notes: String?,
     @ColumnInfo(name = "created_at")
     val createdAtMillis: Long,

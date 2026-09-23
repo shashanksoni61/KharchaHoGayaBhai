@@ -206,6 +206,9 @@ class GetMonthlyDashboardUseCaseTest {
 
         override suspend fun setCategory(transactionId: Long, categoryId: Long?) =
             error("Not needed by the dashboard")
+
+        override suspend fun setIgnored(transactionId: Long, ignored: Boolean) =
+            error("Not needed by the dashboard")
     }
 
     private class FakeCategoryRepository(

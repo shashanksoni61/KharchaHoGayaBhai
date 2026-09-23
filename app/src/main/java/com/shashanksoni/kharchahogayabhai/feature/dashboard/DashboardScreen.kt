@@ -90,6 +90,7 @@ fun DashboardScreen(
         onSeeAllTransactions = { onSeeAllTransactions(uiState.selectedMonth) },
         onTransactionClick = onTransactionClick,
         onSetCategory = viewModel::setCategory,
+        onSetIgnored = viewModel::setIgnored,
         modifier = modifier,
         contentPadding = contentPadding,
     )
@@ -106,6 +107,7 @@ private fun DashboardContent(
     onSeeAllTransactions: () -> Unit,
     onTransactionClick: (Long) -> Unit,
     onSetCategory: (Long, Long?) -> Unit,
+    onSetIgnored: (Long, Boolean) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -206,6 +208,9 @@ private fun DashboardContent(
                             categories = dashboard.categories,
                             onCategorySelected = { categoryId ->
                                 onSetCategory(transaction.id, categoryId)
+                            },
+                            onSetIgnored = { ignored ->
+                                onSetIgnored(transaction.id, ignored)
                             },
                             hideIncome = incomeHidden,
                         )

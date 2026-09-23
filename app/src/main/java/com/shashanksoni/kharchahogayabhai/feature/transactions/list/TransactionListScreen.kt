@@ -159,6 +159,9 @@ fun TransactionListScreen(
                                 onCategorySelected = { categoryId ->
                                     viewModel.setCategory(entry.transaction.id, categoryId)
                                 },
+                                onSetIgnored = { ignored ->
+                                    viewModel.setIgnored(entry.transaction.id, ignored)
+                                },
                             )
                         }
                         item(key = "divider-${dayGroup.date}") {
@@ -214,6 +217,7 @@ fun TransactionListScreen(
             onToggleCategory = viewModel::toggleCategoryFilter,
             onToggleAccount = viewModel::toggleAccountFilter,
             onExcludePromotional = viewModel::setExcludePromotional,
+            onIncludeIgnored = viewModel::setIncludeIgnored,
             onUncategorisedOnly = viewModel::setUncategorisedOnly,
             onClear = viewModel::clearNonMonthFilters,
         )
@@ -375,7 +379,7 @@ private fun PeriodSummaryDialog(
     evenText: String,
     onDismiss: () -> Unit,
 ) {
-    val net = creditTotal - debitTotal
+    val net = Money.net(creditTotal, debitTotal)
     val outcomeText = when {
         net.minorUnits > 0L -> profitText
         net.minorUnits < 0L -> lossText
@@ -560,6 +564,7 @@ private fun FiltersSheet(
     onToggleCategory: (Long) -> Unit,
     onToggleAccount: (String?) -> Unit,
     onExcludePromotional: (Boolean) -> Unit,
+    onIncludeIgnored: (Boolean) -> Unit,
     onUncategorisedOnly: (Boolean) -> Unit,
     onClear: () -> Unit,
 ) {
@@ -639,6 +644,20 @@ private fun FiltersSheet(
                 Switch(
                     checked = uiState.excludePromotional,
                     onCheckedChange = onExcludePromotional,
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.transactions_filter_show_hidden),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = uiState.includeIgnored,
+                    onCheckedChange = onIncludeIgnored,
                 )
             }
             if (uiState.categories.isNotEmpty()) {

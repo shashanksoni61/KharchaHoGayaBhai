@@ -72,6 +72,12 @@ class DashboardViewModel(
         }
     }
 
+    fun setIgnored(transactionId: Long, ignored: Boolean) {
+        viewModelScope.launch {
+            transactionRepository.setIgnored(transactionId, ignored)
+        }
+    }
+
     private fun uiStateOf(month: YearMonth, dashboard: MonthlyDashboard?) = DashboardUiState(
         selectedMonth = month,
         currentMonth = currentMonth,

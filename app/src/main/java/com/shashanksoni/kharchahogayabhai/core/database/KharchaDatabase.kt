@@ -23,7 +23,7 @@ import com.shashanksoni.kharchahogayabhai.core.database.entity.TransactionSource
         LabelEntity::class,
         TransactionLabelCrossRef::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class KharchaDatabase : RoomDatabase() {

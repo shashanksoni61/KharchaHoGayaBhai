@@ -94,8 +94,30 @@ data class Money(
             return fromMajorUnits(parsed, currencyCode)
         }
 
-        fun sum(values: Iterable<Money>, currencyCode: String = DEFAULT_CURRENCY_CODE): Money =
-            values.fold(zero(currencyCode)) { total, value -> total + value }
+        /**
+         * Adds amounts of one currency. Foreign-currency rows are left out of the
+         * total so a USD card spend cannot crash an INR month list.
+         */
+        /** Income minus spend when both sides share a currency; otherwise the INR (or first) side. */
+        fun net(credit: Money, debit: Money): Money = when {
+            credit.currencyCode == debit.currencyCode -> credit - debit
+            credit.isZero -> zero(debit.currencyCode) - debit
+            debit.isZero -> credit
+            else -> credit
+        }
+
+        fun sum(values: Iterable<Money>, currencyCode: String = DEFAULT_CURRENCY_CODE): Money {
+            val list = values.toList()
+            if (list.isEmpty()) return zero(currencyCode)
+            val code = if (list.any { it.currencyCode == currencyCode }) {
+                currencyCode
+            } else {
+                list.first().currencyCode
+            }
+            return list.fold(zero(code)) { total, value ->
+                if (value.currencyCode == code) total + value else total
+            }
+        }
 
         private fun fractionDigitsOf(currencyCode: String): Int =
             fractionDigitCache.getOrPut(currencyCode) {

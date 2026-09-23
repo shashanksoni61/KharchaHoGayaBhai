@@ -54,6 +54,7 @@ interface TransactionDao {
           AND (:minAmountMinor IS NULL OR amount_minor_units >= :minAmountMinor)
           AND (:maxAmountMinor IS NULL OR amount_minor_units <= :maxAmountMinor)
           AND (:excludePromotional = 0 OR is_promotional = 0)
+          AND (:includeIgnored = 1 OR is_ignored = 0)
           AND (:uncategorisedOnly = 0 OR category_id IS NULL)
         ORDER BY transaction_date DESC, id DESC
         """,
@@ -70,6 +71,7 @@ interface TransactionDao {
         minAmountMinor: Long?,
         maxAmountMinor: Long?,
         excludePromotional: Int,
+        includeIgnored: Int,
         uncategorisedOnly: Int,
     ): Flow<List<TransactionEntity>>
 
@@ -83,6 +85,7 @@ interface TransactionDao {
         FROM transactions
         WHERE transaction_date >= :startMillis AND transaction_date < :endMillisExclusive
           AND is_promotional = 0
+          AND is_ignored = 0
         ORDER BY transaction_date ASC
         """,
     )
@@ -96,6 +99,7 @@ interface TransactionDao {
         """
         SELECT DISTINCT account_identifier FROM transactions
         WHERE account_identifier IS NOT NULL
+          AND is_ignored = 0
         ORDER BY account_identifier ASC
         """,
     )
@@ -110,7 +114,7 @@ interface TransactionDao {
     fun observeDateBounds(): Flow<TransactionDateBoundsProjection>
 
     /** Every stored timestamp, used to build month chips that actually have data. */
-    @Query("SELECT transaction_date FROM transactions WHERE is_promotional = 0")
+    @Query("SELECT transaction_date FROM transactions WHERE is_promotional = 0 AND is_ignored = 0")
     fun observeTransactionDates(): Flow<List<Long>>
 
     @Query("SELECT * FROM transactions WHERE id = :transactionId")
@@ -159,6 +163,9 @@ interface TransactionDao {
 
     @Query("UPDATE transactions SET category_id = :categoryId, updated_at = :updatedAtMillis WHERE id = :transactionId")
     suspend fun updateCategory(transactionId: Long, categoryId: Long?, updatedAtMillis: Long)
+
+    @Query("UPDATE transactions SET is_ignored = :ignored, updated_at = :updatedAtMillis WHERE id = :transactionId")
+    suspend fun updateIgnored(transactionId: Long, ignored: Boolean, updatedAtMillis: Long)
 
     @Query("DELETE FROM transactions")
     suspend fun deleteAllTransactions()

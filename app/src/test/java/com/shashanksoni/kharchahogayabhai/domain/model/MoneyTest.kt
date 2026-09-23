@@ -51,6 +51,18 @@ class MoneyTest {
     }
 
     @Test
+    fun `summing a month keeps the default currency and skips others`() {
+        val rupees = Money.fromMajorUnits(BigDecimal("100.00"), "INR")
+        val dollars = Money.fromMajorUnits(BigDecimal("25.00"), "USD")
+        assertEquals(rupees, Money.sum(listOf(rupees, dollars)))
+        assertEquals(dollars, Money.sum(listOf(dollars)))
+        assertEquals(
+            Money.fromMajorUnits(BigDecimal("-25.00"), "USD"),
+            Money.net(Money.zero(), dollars),
+        )
+    }
+
+    @Test
     fun `mixing currencies is refused`() {
         val rupees = Money.fromMajorUnits(BigDecimal("100.00"), "INR")
         val dollars = Money.fromMajorUnits(BigDecimal("100.00"), "USD")

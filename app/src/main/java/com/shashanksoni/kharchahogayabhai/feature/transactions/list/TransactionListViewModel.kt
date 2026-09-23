@@ -48,7 +48,7 @@ data class TransactionDayGroup(
     val debitTotal: Money,
     val uncategorisedCount: Int,
 ) {
-    val net: Money get() = creditTotal - debitTotal
+    val net: Money get() = Money.net(creditTotal, debitTotal)
     val transactionCount: Int get() = entries.size
 }
 
@@ -60,7 +60,7 @@ data class TransactionMonthGroup(
     val creditTotal: Money,
     val debitTotal: Money,
 ) {
-    val net: Money get() = creditTotal - debitTotal
+    val net: Money get() = Money.net(creditTotal, debitTotal)
     val transactionCount: Int get() = dayGroups.sumOf { it.transactionCount }
     val uncategorisedCount: Int get() = dayGroups.sumOf { it.uncategorisedCount }
 }
@@ -90,6 +90,7 @@ data class TransactionListUiState(
     val selectedAccount: String? = null,
     val accounts: List<String> = emptyList(),
     val excludePromotional: Boolean = false,
+    val includeIgnored: Boolean = false,
     val uncategorisedOnly: Boolean = false,
     val isLoading: Boolean = true,
 ) {
@@ -106,7 +107,8 @@ data class TransactionListUiState(
         get() = selectedType != null ||
             selectedSource != null ||
             hasAdvancedFilters ||
-            !excludePromotional
+            !excludePromotional ||
+            includeIgnored
 
     fun isMonthCollapsed(month: YearMonth): Boolean = month in collapsedMonths
 
@@ -214,6 +216,7 @@ class TransactionListViewModel(
             selectedAccount = activeFilter.accountIdentifier,
             accounts = accounts,
             excludePromotional = activeFilter.excludePromotional,
+            includeIgnored = activeFilter.includeIgnored,
             uncategorisedOnly = activeFilter.uncategorisedOnly,
             isLoading = false,
         )
@@ -278,6 +281,16 @@ class TransactionListViewModel(
         filter.update { it.copy(excludePromotional = exclude) }
     }
 
+    fun setIncludeIgnored(include: Boolean) {
+        filter.update { it.copy(includeIgnored = include) }
+    }
+
+    fun setIgnored(transactionId: Long, ignored: Boolean) {
+        viewModelScope.launch {
+            transactionRepository.setIgnored(transactionId, ignored)
+        }
+    }
+
     fun setUncategorisedOnly(only: Boolean) {
         filter.update {
             it.copy(
@@ -299,6 +312,7 @@ class TransactionListViewModel(
                 categoryIds = emptySet(),
                 accountIdentifier = null,
                 excludePromotional = true,
+                includeIgnored = false,
                 uncategorisedOnly = false,
             )
         }
@@ -314,6 +328,7 @@ class TransactionListViewModel(
                 categoryIds = emptySet(),
                 accountIdentifier = null,
                 excludePromotional = true,
+                includeIgnored = false,
                 uncategorisedOnly = false,
             )
         }
