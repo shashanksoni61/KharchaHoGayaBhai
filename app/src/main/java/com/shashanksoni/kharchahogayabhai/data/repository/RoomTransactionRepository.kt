@@ -45,6 +45,8 @@ class RoomTransactionRepository(
     override fun observeAccountIdentifiers(): Flow<List<String>> =
         transactionDao.observeAccountIdentifiers()
 
+    override suspend fun countTransactions(): Int = transactionDao.countTransactions()
+
     override suspend fun setCategory(transactionId: Long, categoryId: Long?) {
         transactionDao.updateCategory(
             transactionId = transactionId,

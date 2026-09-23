@@ -14,6 +14,7 @@ import com.shashanksoni.kharchahogayabhai.domain.model.IngestOutcome
 import com.shashanksoni.kharchahogayabhai.domain.model.ParsedTransaction
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import com.shashanksoni.kharchahogayabhai.domain.repository.ImportRepository
+import com.shashanksoni.kharchahogayabhai.domain.repository.TransactionRepository
 import com.shashanksoni.kharchahogayabhai.pdf.PdfParseInput
 import com.shashanksoni.kharchahogayabhai.pdf.PdfTextExtractor
 import com.shashanksoni.kharchahogayabhai.pdf.PdfTransactionParser
@@ -30,6 +31,7 @@ class ImportStatementFileUseCase(
     private val pdfTextExtractor: PdfTextExtractor,
     private val ingestor: TransactionIngestor,
     private val importRepository: ImportRepository,
+    private val transactionRepository: TransactionRepository,
     private val clock: Clock = Clock.systemUTC(),
 ) {
 
@@ -136,7 +138,12 @@ class ImportStatementFileUseCase(
             },
         )
         val id = importRepository.saveImportBatch(batch)
-        return ImportResult(batch = batch.copy(id = id), outcomes = outcomes)
+        return ImportResult(
+            batch = batch.copy(id = id),
+            outcomes = outcomes,
+            scannedCount = parsed.size,
+            storedTotalCount = transactionRepository.countTransactions(),
+        )
     }
 
     private suspend fun failedBatch(

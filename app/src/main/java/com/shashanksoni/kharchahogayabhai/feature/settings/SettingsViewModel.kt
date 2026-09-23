@@ -138,17 +138,25 @@ class SettingsViewModel(
 
     private fun applySmsResult(result: ImportResult, fullRescan: Boolean) {
         val batch = result.batch
+        val totals = "Now showing data from ${result.storedTotalCount} transactions."
         if (batch.newCount > 0 || batch.mergedCount > 0) {
             val scope = if (fullRescan) "Full SMS scan" else "SMS scan"
             infoMessage.value =
-                "$scope: ${batch.newCount} new, ${batch.mergedCount} merged, " +
-                    "${batch.duplicateCount} already present."
+                "$scope: scanned ${result.scannedCount} messages · " +
+                    "${batch.newCount} new, ${batch.mergedCount} merged, " +
+                    "${batch.duplicateCount} already present. $totals"
             errorMessage.value = null
         } else if (batch.errorMessage != null) {
-            errorMessage.value = batch.errorMessage
+            errorMessage.value =
+                if (result.scannedCount > 0) {
+                    "${batch.errorMessage} (scanned ${result.scannedCount} messages). $totals"
+                } else {
+                    "${batch.errorMessage} $totals"
+                }
             infoMessage.value = null
         } else {
-            infoMessage.value = "SMS scan finished — nothing new to add."
+            infoMessage.value =
+                "SMS scan finished — scanned ${result.scannedCount} messages, nothing new to add. $totals"
         }
     }
 

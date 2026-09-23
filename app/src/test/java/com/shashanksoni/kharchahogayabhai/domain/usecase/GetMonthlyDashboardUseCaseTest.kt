@@ -187,6 +187,9 @@ class GetMonthlyDashboardUseCaseTest {
         override fun observeAccountIdentifiers(): Flow<List<String>> =
             error("Not needed by the dashboard")
 
+        override suspend fun countTransactions(): Int =
+            error("Not needed by the dashboard")
+
         override suspend fun setCategory(transactionId: Long, categoryId: Long?) =
             error("Not needed by the dashboard")
     }

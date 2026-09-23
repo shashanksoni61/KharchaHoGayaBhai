@@ -41,4 +41,8 @@ enum class IngestOutcome {
 data class ImportResult(
     val batch: ImportBatch,
     val outcomes: List<IngestOutcome>,
+    /** How many source records (SMS messages / statement rows) were inspected this run. */
+    val scannedCount: Int = 0,
+    /** Total transactions the app now holds data from, after this import. */
+    val storedTotalCount: Int = 0,
 )

@@ -95,6 +95,8 @@
     <string name="import_sms_explanation">Reads bank and UPI alerts already on this phone. Needs SMS permission once. Nothing leaves the device.</string>
     <string name="import_in_progress">Reading and matching transactions…</string>
     <string name="import_result_summary">%1$d found · %2$d new · %3$d merged · %4$d already present · %5$d failed</string>
+    <string name="import_result_scanned">Scanned %1$d messages</string>
+    <string name="import_result_stored_total">Now showing data from %1$d transactions</string>
     <string name="import_history_title">Import history</string>
     <string name="import_history_empty">No imports yet. Pick a CSV or PDF, or scan SMS alerts to get started.</string>
     <string name="import_history_counts">%1$d found · %2$d new · %3$d merged · %4$d duplicates</string>

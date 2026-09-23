@@ -26,6 +26,9 @@ interface TransactionRepository {
     /** Distinct account tails currently present, for the account filter. */
     fun observeAccountIdentifiers(): Flow<List<String>>
 
+    /** Total stored transactions, used for the overall "data from N messages" counter. */
+    suspend fun countTransactions(): Int
+
     /** Passing null clears the category. */
     suspend fun setCategory(transactionId: Long, categoryId: Long?)
 }

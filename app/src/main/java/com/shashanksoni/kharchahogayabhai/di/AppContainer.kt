@@ -120,6 +120,7 @@ class AppContainer(context: Context) {
             pdfTextExtractor = PdfTextExtractor(applicationContext),
             ingestor = transactionIngestor,
             importRepository = importRepository,
+            transactionRepository = transactionRepository,
             clock = clock,
         )
     }
@@ -130,6 +131,7 @@ class AppContainer(context: Context) {
             smsParser = SmsTransactionParser(zone = zone),
             ingestor = transactionIngestor,
             importRepository = importRepository,
+            transactionRepository = transactionRepository,
             scanPreferences = smsScanPreferences,
             clock = clock,
         )

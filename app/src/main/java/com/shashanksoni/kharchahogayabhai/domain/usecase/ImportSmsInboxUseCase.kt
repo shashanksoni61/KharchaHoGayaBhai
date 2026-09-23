@@ -8,8 +8,8 @@ import com.shashanksoni.kharchahogayabhai.domain.model.IngestOutcome
 import com.shashanksoni.kharchahogayabhai.domain.model.ParsedTransaction
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import com.shashanksoni.kharchahogayabhai.domain.repository.ImportRepository
+import com.shashanksoni.kharchahogayabhai.domain.repository.TransactionRepository
 import com.shashanksoni.kharchahogayabhai.sms.SmsInboxReader
-import com.shashanksoni.kharchahogayabhai.sms.SmsMessage
 import com.shashanksoni.kharchahogayabhai.sms.SmsParseInput
 import com.shashanksoni.kharchahogayabhai.sms.SmsScanPreferences
 import com.shashanksoni.kharchahogayabhai.sms.SmsTransactionParser
@@ -37,6 +37,7 @@ class ImportSmsInboxUseCase(
     private val smsParser: SmsTransactionParser,
     private val ingestor: TransactionIngestor,
     private val importRepository: ImportRepository,
+    private val transactionRepository: TransactionRepository,
     private val scanPreferences: SmsScanPreferences,
     private val clock: Clock = Clock.systemUTC(),
 ) {
@@ -66,6 +67,7 @@ class ImportSmsInboxUseCase(
             )
         }
 
+        val scannedCount = messages.size
         // Newest by provider date, then inbox id — keeps same-timestamp bursts ordered.
         val newestReadMessage = messages.maxWithOrNull(
             compareBy({ it.receivedAt }, { it.id }),
@@ -83,6 +85,7 @@ class ImportSmsInboxUseCase(
                     "No new SMS since the last scan."
                 },
                 recordHistory = recordEmptyHistory,
+                scannedCount = 0,
             )
         }
 
@@ -100,10 +103,11 @@ class ImportSmsInboxUseCase(
             return failed(
                 message = "No bank or UPI transaction alerts were recognised in the scanned SMS.",
                 recordHistory = recordEmptyHistory,
+                scannedCount = scannedCount,
             )
         }
 
-        return finishImport(parsed, newestReadMessage)
+        return finishImport(parsed, scannedCount)
     }
 
     /**
@@ -135,7 +139,7 @@ class ImportSmsInboxUseCase(
 
     private suspend fun finishImport(
         parsed: List<ParsedTransaction>,
-        newestReadMessage: SmsMessage?,
+        scannedCount: Int,
     ): ImportResult {
         val outcomes = ingestor.ingest(parsed)
         val newCount = outcomes.count { it == IngestOutcome.CREATED }
@@ -150,8 +154,6 @@ class ImportSmsInboxUseCase(
             failedCount > 0 -> ImportBatchStatus.PARTIAL
             else -> ImportBatchStatus.SUCCESS
         }
-
-        newestReadMessage?.let(scanPreferences::advanceCursorPast)
 
         val batch = ImportBatch(
             fileName = "SMS inbox",
@@ -174,12 +176,18 @@ class ImportSmsInboxUseCase(
             },
         )
         val id = importRepository.saveImportBatch(batch)
-        return ImportResult(batch = batch.copy(id = id), outcomes = outcomes)
+        return ImportResult(
+            batch = batch.copy(id = id),
+            outcomes = outcomes,
+            scannedCount = scannedCount,
+            storedTotalCount = transactionRepository.countTransactions(),
+        )
     }
 
     private suspend fun failed(
         message: String,
         recordHistory: Boolean,
+        scannedCount: Int = 0,
     ): ImportResult {
         val batch = ImportBatch(
             fileName = "SMS inbox",
@@ -193,10 +201,21 @@ class ImportSmsInboxUseCase(
             status = ImportBatchStatus.FAILED,
             errorMessage = message,
         )
+        val storedTotal = transactionRepository.countTransactions()
         if (!recordHistory) {
-            return ImportResult(batch = batch, outcomes = emptyList())
+            return ImportResult(
+                batch = batch,
+                outcomes = emptyList(),
+                scannedCount = scannedCount,
+                storedTotalCount = storedTotal,
+            )
         }
         val id = importRepository.saveImportBatch(batch)
-        return ImportResult(batch = batch.copy(id = id), outcomes = emptyList())
+        return ImportResult(
+            batch = batch.copy(id = id),
+            outcomes = emptyList(),
+            scannedCount = scannedCount,
+            storedTotalCount = storedTotal,
+        )
     }
 }

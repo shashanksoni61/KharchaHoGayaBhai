@@ -40,6 +40,7 @@ import com.shashanksoni.kharchahogayabhai.R
 import com.shashanksoni.kharchahogayabhai.core.common.DateTimeFormatters
 import com.shashanksoni.kharchahogayabhai.domain.model.ImportBatch
 import com.shashanksoni.kharchahogayabhai.domain.model.ImportBatchStatus
+import com.shashanksoni.kharchahogayabhai.domain.model.ImportResult
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import com.shashanksoni.kharchahogayabhai.ui.util.labelRes
 import java.time.ZoneId
@@ -164,7 +165,7 @@ fun ImportScreen(
                 }
 
                 uiState.lastResult?.let { result ->
-                    ResultCard(batch = result.batch)
+                    ResultCard(result = result)
                 }
 
                 uiState.errorMessage?.let { message ->
@@ -207,7 +208,8 @@ fun ImportScreen(
 }
 
 @Composable
-private fun ResultCard(batch: ImportBatch) {
+private fun ResultCard(result: ImportResult) {
+    val batch = result.batch
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -219,6 +221,12 @@ private fun ResultCard(batch: ImportBatch) {
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(batch.fileName, style = MaterialTheme.typography.titleSmall)
+            if (result.scannedCount > 0) {
+                Text(
+                    text = stringResource(R.string.import_result_scanned, result.scannedCount),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
             Text(
                 text = stringResource(
                     R.string.import_result_summary,
@@ -229,6 +237,14 @@ private fun ResultCard(batch: ImportBatch) {
                     batch.failedCount,
                 ),
                 style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = stringResource(
+                    R.string.import_result_stored_total,
+                    result.storedTotalCount,
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
     }
