@@ -15,6 +15,12 @@ data class TransactionFilter(
     val source: TransactionSource? = null,
     val categoryIds: Set<Long> = emptySet(),
     val accountIdentifier: String? = null,
+    /** Inclusive floor, in minor units (paise). Matches the stored absolute amount. */
+    val minAmountMinorUnits: Long? = null,
+    /** Inclusive ceiling, in minor units (paise). */
+    val maxAmountMinorUnits: Long? = null,
+    val excludePromotional: Boolean = false,
+    val uncategorisedOnly: Boolean = false,
 ) {
     val isActive: Boolean
         get() = !searchQuery.isNullOrBlank() ||
@@ -22,7 +28,11 @@ data class TransactionFilter(
             type != null ||
             source != null ||
             categoryIds.isNotEmpty() ||
-            accountIdentifier != null
+            accountIdentifier != null ||
+            minAmountMinorUnits != null ||
+            maxAmountMinorUnits != null ||
+            excludePromotional ||
+            uncategorisedOnly
 
     companion object {
         val NONE = TransactionFilter()

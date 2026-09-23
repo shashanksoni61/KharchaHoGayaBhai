@@ -118,7 +118,8 @@ private fun KharchaNavHost(
         composable(KharchaDestination.Dashboard.route) {
             DashboardScreen(
                 viewModel = viewModel(factory = DashboardViewModel.factory(container)),
-                onSeeAllTransactions = {
+                onSeeAllTransactions = { month ->
+                    container.pendingTransactionMonth.request(month)
                     navController.navigateToTopLevel(KharchaDestination.Transactions)
                 },
                 onTransactionClick = { transactionId ->

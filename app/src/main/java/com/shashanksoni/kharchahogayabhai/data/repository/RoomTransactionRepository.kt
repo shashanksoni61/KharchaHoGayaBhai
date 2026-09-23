@@ -27,12 +27,16 @@ class RoomTransactionRepository(
             type = filter.type?.name,
             source = filter.source?.name,
             accountIdentifier = filter.accountIdentifier,
-            filterByCategory = if (filter.categoryIds.isEmpty()) 0 else 1,
+            filterByCategory = if (filter.uncategorisedOnly || filter.categoryIds.isEmpty()) 0 else 1,
             // `IN ()` is not valid SQL, so an inactive category filter still has to
             // bind one value; this id can never exist.
             categoryIds = filter.categoryIds.takeIf { it.isNotEmpty() }?.toList()
                 ?: listOf(UNMATCHABLE_CATEGORY_ID),
             searchQuery = filter.searchQuery?.trim()?.takeIf { it.isNotEmpty() },
+            minAmountMinor = filter.minAmountMinorUnits,
+            maxAmountMinor = filter.maxAmountMinorUnits,
+            excludePromotional = if (filter.excludePromotional) 1 else 0,
+            uncategorisedOnly = if (filter.uncategorisedOnly) 1 else 0,
         ).map { entities -> entities.map { it.toDomain() } }
 
     override fun observeTransactionDetail(transactionId: Long): Flow<TransactionDetail?> =
@@ -51,6 +55,11 @@ class RoomTransactionRepository(
                 earliest = bounds.minDate?.let(Instant::ofEpochMilli),
                 latest = bounds.maxDate?.let(Instant::ofEpochMilli),
             )
+        }
+
+    override fun observeTransactionDates(): Flow<List<Instant>> =
+        transactionDao.observeTransactionDates().map { millis ->
+            millis.map(Instant::ofEpochMilli)
         }
 
     override fun observeAccountIdentifiers(): Flow<List<String>> =

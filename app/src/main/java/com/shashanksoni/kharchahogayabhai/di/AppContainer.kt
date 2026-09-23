@@ -28,8 +28,11 @@ import com.shashanksoni.kharchahogayabhai.sms.SmsInboxReader
 import com.shashanksoni.kharchahogayabhai.sms.SmsScanPreferences
 import com.shashanksoni.kharchahogayabhai.sms.SmsTransactionParser
 import com.shashanksoni.kharchahogayabhai.sms.TransactionAlertNotifier
+import com.shashanksoni.kharchahogayabhai.KharchaApplication
+import com.shashanksoni.kharchahogayabhai.navigation.PendingTransactionMonth
 import java.time.Clock
 import java.time.ZoneId
+import kotlinx.coroutines.CoroutineScope
 
 /**
  * Wires the app together by hand.
@@ -47,6 +50,13 @@ class AppContainer(context: Context) {
         )
     }
 
+    val applicationScope: CoroutineScope
+        get() = (applicationContext as KharchaApplication).applicationScope
+
+    val smsInboxReader: SmsInboxReader by lazy {
+        SmsInboxReader(applicationContext)
+    }
+
     val smsScanPreferences: SmsScanPreferences by lazy {
         SmsScanPreferences(prefs)
     }
@@ -56,6 +66,8 @@ class AppContainer(context: Context) {
     }
 
     val securitySession: SecuritySession = SecuritySession()
+
+    val pendingTransactionMonth: PendingTransactionMonth = PendingTransactionMonth()
 
     private val database: KharchaDatabase by lazy {
         Room.databaseBuilder(
@@ -140,7 +152,7 @@ class AppContainer(context: Context) {
 
     val importSmsInbox: ImportSmsInboxUseCase by lazy {
         ImportSmsInboxUseCase(
-            inboxReader = SmsInboxReader(applicationContext),
+            inboxReader = smsInboxReader,
             smsParser = SmsTransactionParser(zone = zone),
             ingestor = transactionIngestor,
             importRepository = importRepository,

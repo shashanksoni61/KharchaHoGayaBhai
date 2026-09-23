@@ -33,21 +33,23 @@ class SmsTransactionParser(
     override val name: String = "Indian bank / UPI SMS"
 
     override fun canParse(input: SmsParseInput): Boolean =
-        input.messages.any { looksLikeTransactionAlert(it.body) }
+        input.messages.any { looksLikeCandidate(it.body) }
 
     override fun parse(input: SmsParseInput): List<ParsedTransaction> =
         input.messages.mapNotNull { message -> parseOne(message) }
 
     private fun parseOne(message: SmsMessage): ParsedTransaction? {
         val body = message.body
-        if (!looksLikeTransactionAlert(body)) return null
+        if (!looksLikeCandidate(body)) return null
 
-        val amount = extractAmount(body)
-        val type = detectType(body)
         val reference = extractReference(body)
         val account = ACCOUNT_MASK.find(body)?.groupValues?.getOrNull(1)
+        val spendAmount = extractSpendAmount(body)
+        val informationalOnly = isInformationalOnly(body, spendAmount)
+        val promotional = informationalOnly || isPromotionalAlert(body, reference, account)
+        val amount = spendAmount ?: if (promotional) extractAnyAmount(body) else null
+        val type = detectType(body) ?: if (promotional) TransactionType.DEBIT else null
         val paymentMethod = detectPaymentMethod(body)
-        val promotional = isPromotionalAlert(body, reference, account)
         val merchant = if (promotional) {
             extractMerchant(body) ?: message.address?.let(::cleanMerchant)
         } else {
@@ -75,6 +77,7 @@ class SmsTransactionParser(
         }
 
         val status = when {
+            promotional -> ParseStatus.PARSED
             reference.isNullOrBlank() && merchant.isNullOrBlank() -> ParseStatus.PARTIALLY_PARSED
             else -> ParseStatus.PARSED
         }
@@ -98,9 +101,9 @@ class SmsTransactionParser(
     }
 
     /**
-     * Offers, app-wallet credits with an expiry, and similar marketing SMS
-     * often say "Rs X credited" without a bank account or UTR. Keep them
-     * visible; do not treat them as money that moved.
+     * Offers, wallet credits with an expiry, remaining card limits, dues and
+     * similar alerts mention rupees but no money moved. They stay out of totals
+     * and are hidden from the list by default.
      */
     private fun isPromotionalAlert(
         body: String,
@@ -111,34 +114,85 @@ class SmsTransactionParser(
         return PROMOTIONAL_HINT.containsMatchIn(body)
     }
 
+    private fun isInformationalOnly(body: String, spendAmount: Money?): Boolean {
+        if (!INFORMATIONAL_HINT.containsMatchIn(body)) return false
+        return spendAmount == null || !hasMoneyMovementVerb(body)
+    }
+
     private fun hasBankMoneyMovementEvidence(
         body: String,
         reference: String?,
         account: String?,
     ): Boolean {
-        if (!account.isNullOrBlank()) return true
+        if (!hasMoneyMovementVerb(body)) return false
         if (!reference.isNullOrBlank()) return true
+        if (!account.isNullOrBlank()) return true
         return BANK_MOVEMENT_HINT.containsMatchIn(body)
     }
 
-    private fun looksLikeTransactionAlert(body: String): Boolean {
-        if (!AMOUNT_HINT.containsMatchIn(body)) return false
-        return DEBIT_HINT.containsMatchIn(body) ||
+    private fun hasMoneyMovementVerb(body: String): Boolean =
+        DEBIT_HINT.containsMatchIn(body) ||
             CREDIT_HINT.containsMatchIn(body) ||
-            SPENT_HINT.containsMatchIn(body) ||
+            SPENT_HINT.containsMatchIn(body)
+
+    private fun looksLikeCandidate(body: String): Boolean {
+        if (!AMOUNT_HINT.containsMatchIn(body)) return false
+        return hasMoneyMovementVerb(body) ||
+            INFORMATIONAL_HINT.containsMatchIn(body) ||
+            PROMOTIONAL_HINT.containsMatchIn(body) ||
             UPI_HINT.containsMatchIn(body)
     }
 
-    private fun extractAmount(body: String): Money? {
-        AMOUNT_CAPTURE.findAll(body).forEach { match ->
-            val raw = match.groupValues[1]
-            Money.parseMajorUnitsOrNull(raw)?.absoluteValue?.let { return it }
+    /** The amount that moved, never a remaining limit / due / balance figure. */
+    private fun extractSpendAmount(body: String): Money? {
+        val hits = findAmountHits(body).filterNot { isNonTransactionAmount(body, it.range) }
+        if (hits.isEmpty()) return null
+        val nearMovement = hits.filter { isNearMovementVerb(body, it.range) }
+        return (nearMovement.firstOrNull() ?: hits.first()).money
+    }
+
+    private fun extractAnyAmount(body: String): Money? =
+        findAmountHits(body).firstOrNull()?.money
+
+    private fun findAmountHits(body: String): List<AmountHit> {
+        val hits = mutableListOf<AmountHit>()
+        fun addHits(pattern: Regex, currency: String) {
+            pattern.findAll(body).forEach { match ->
+                val raw = match.groupValues.drop(1).firstOrNull { it.isNotBlank() } ?: return@forEach
+                Money.parseMajorUnitsOrNull(raw, currency)?.absoluteValue?.let { money ->
+                    hits += AmountHit(money, match.range)
+                }
+            }
         }
-        return null
+        addHits(INR_PREFIX_AMOUNT, "INR")
+        addHits(INR_SUFFIX_AMOUNT, "INR")
+        addHits(RUPEE_AMOUNT, "INR")
+        addHits(USD_AMOUNT, "USD")
+        addHits(DOLLAR_AMOUNT, "USD")
+        addHits(MOVEMENT_BARE_AMOUNT, "INR")
+        return hits.sortedBy { it.range.first }
+    }
+
+    private fun isNonTransactionAmount(body: String, range: IntRange): Boolean {
+        val prefix = body.substring((range.first - 48).coerceAtLeast(0), range.first)
+        val suffix = body.substring(
+            range.last + 1,
+            (range.last + 1 + 36).coerceAtMost(body.length),
+        )
+        return LIMIT_AMOUNT_PREFIX.containsMatchIn(prefix) ||
+            LIMIT_AMOUNT_SUFFIX.containsMatchIn(suffix)
+    }
+
+    private fun isNearMovementVerb(body: String, range: IntRange): Boolean {
+        val start = (range.first - 40).coerceAtLeast(0)
+        val end = (range.last + 1 + 24).coerceAtMost(body.length)
+        return MOVEMENT_NEAR_AMOUNT.containsMatchIn(body.substring(start, end))
     }
 
     private fun detectType(body: String): TransactionType? = when {
-        CREDIT_HINT.containsMatchIn(body) && !DEBIT_HINT.containsMatchIn(body) ->
+        CREDIT_HINT.containsMatchIn(body) &&
+            !DEBIT_HINT.containsMatchIn(body) &&
+            !SPENT_HINT.containsMatchIn(body) ->
             TransactionType.CREDIT
 
         DEBIT_HINT.containsMatchIn(body) || SPENT_HINT.containsMatchIn(body) ->
@@ -205,25 +259,74 @@ class SmsTransactionParser(
 
     private fun sourceId(smsId: Long): String = "sms:$smsId"
 
+    private data class AmountHit(val money: Money, val range: IntRange)
+
     companion object {
         private val AMOUNT_HINT = Regex(
-            """(?:Rs\.?|INR|₹)\s*[\d,]+\.?\d*""",
+            """(?:Rs\.?|INR|₹|USD)\s*[\d,]+\.?\d*|[\d,]+\.?\d*\s*(?:USD|dollars?|INR|Rs\.?)|""" +
+                "\\\$\\s*[\\d,]+\\.?\\d*",
             RegexOption.IGNORE_CASE,
         )
-        private val AMOUNT_CAPTURE = Regex(
-            """(?:(?:Rs\.?|INR|₹)\s*|(?:debited|credited|spent|paid|received)\s+(?:for\s+)?(?:Rs\.?|INR|₹)?\s*)([\d,]+(?:\.\d{1,2})?)""",
+        private val INR_PREFIX_AMOUNT = Regex(
+            """(?:Rs\.?|INR)\s*([\d,]+(?:\.\d{1,2})?)""",
+            RegexOption.IGNORE_CASE,
+        )
+        private val INR_SUFFIX_AMOUNT = Regex(
+            """([\d,]+(?:\.\d{1,2})?)\s*(?:INR|Rs\.?)\b""",
+            RegexOption.IGNORE_CASE,
+        )
+        private val RUPEE_AMOUNT = Regex("₹\\s*([\\d,]+(?:\\.\\d{1,2})?)")
+        private val USD_AMOUNT = Regex(
+            """USD\s*([\d,]+(?:\.\d{1,2})?)|([\d,]+(?:\.\d{1,2})?)\s*(?:USD|dollars?)""",
+            RegexOption.IGNORE_CASE,
+        )
+        private val DOLLAR_AMOUNT = Regex("\\\$\\s*([\\d,]+(?:\\.\\d{1,2})?)")
+        private val MOVEMENT_BARE_AMOUNT = Regex(
+            """(?:debited|credited|spent|paid|received|payment\s+of)\s+(?:for\s+)?([\d,]+(?:\.\d{1,2})?)""",
             RegexOption.IGNORE_CASE,
         )
         private val DEBIT_HINT = Regex(
-            """\b(debited|debit|withdrawn|withdrawal|paid\s+to|sent\s+to|purchase)\b""",
+            """\b(debited|withdrawn|withdrawal|paid\s+to|sent\s+to|purchase)\b""",
             RegexOption.IGNORE_CASE,
         )
         private val CREDIT_HINT = Regex(
-            """\b(credited|credit|deposited|received|refund)\b""",
+            """\b(credited|deposited|refund(?:ed)?|received\s+from|received\s+in\s+your)\b""",
             RegexOption.IGNORE_CASE,
         )
-        private val SPENT_HINT = Regex("""\b(spent|purchase)\b""", RegexOption.IGNORE_CASE)
+        private val SPENT_HINT = Regex(
+            """\b(spent|purchase|using\s+your|used\s+(?:for|at)|txn\s+of|payment\s+of)\b""",
+            RegexOption.IGNORE_CASE,
+        )
+        private val MOVEMENT_NEAR_AMOUNT = Regex(
+            """\b(debited|credited|spent|paid|purchase|using\s+your|used\s+(?:for|at)|""" +
+                """payment\s+of|withdrawn|deposited|refund(?:ed)?)\b""",
+            RegexOption.IGNORE_CASE,
+        )
         private val UPI_HINT = Regex("""\bUPI\b""", RegexOption.IGNORE_CASE)
+        private val INFORMATIONAL_HINT = Regex(
+            """(?:avail(?:able)?|avl|avbl|remaining|unused)\s+(?:credit\s+)?(?:limit|lim|bal(?:ance)?)|""" +
+                """(?:credit\s+)?limit\s+(?:is|of|available|remaining|has\s+been|increased|decreased|revised|enhanced|:)|""" +
+                """(?:avail(?:able)?|avl|avbl)\s+bal(?:ance)?|""" +
+                """outstanding|(?:total|min(?:imum)?|amt)\s+(?:amt\s+)?due|payment\s+due|due\s+(?:date|amt|amount)|""" +
+                """statement\s+(?:is\s+)?generated|reward\s+points?|""" +
+                """card\s+(?:is\s+)?(?:blocked|hotlisted|expired)|""" +
+                """overdue""",
+            RegexOption.IGNORE_CASE,
+        )
+        private val LIMIT_AMOUNT_PREFIX = Regex(
+            """(?:avail(?:able)?|avl|avbl|remaining|unused).{0,24}(?:limit|lim|bal(?:ance)?).{0,28}$|""" +
+                """(?:credit\s+)?limit\s+(?:is|of|:)?\s*$|""" +
+                """outstanding(?:\s+(?:amt|amount|bal(?:ance)?))?\s*[:\-]?\s*$|""" +
+                """(?:total|min(?:imum)?|amt)\s+(?:amt\s+)?due\s*[:\-]?\s*$|""" +
+                """payment\s+due\s*[:\-]?\s*$|""" +
+                """reward\s+points?\s*[:\-]?\s*$""",
+            RegexOption.IGNORE_CASE,
+        )
+        private val LIMIT_AMOUNT_SUFFIX = Regex(
+            """^\s*(?:is|as)?\s*(?:your\s+)?(?:avail(?:able)?|remaining|unused).{0,24}(?:limit|bal)|""" +
+                """^\s*(?:INR|Rs\.?|₹)?\s*(?:is\s+)?(?:your\s+)?(?:remaining|available)\s+(?:credit\s+)?limit""",
+            RegexOption.IGNORE_CASE,
+        )
         private val ACCOUNT_MASK = Regex(
             """(?:a/?c|acct|account)(?:\s*no\.?)?[^\dX*]*([X*]{2,}\d{2,}|\d{4})""",
             RegexOption.IGNORE_CASE,
@@ -243,7 +346,7 @@ class SmsTransactionParser(
             """\b(\d{1,2}[-/]\d{1,2}[-/]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\b""",
         )
         private val BANK_MOVEMENT_HINT = Regex(
-            """(?:debited\s+from|credited\s+to\s+your|withdrawn\s+from|avl(?:ailable)?\s+bal|not you\?|a/?c\s*(?:no\.?)?)""",
+            """(?:debited\s+from|credited\s+to\s+your|withdrawn\s+from|not you\?)""",
             RegexOption.IGNORE_CASE,
         )
         private val PROMOTIONAL_HINT = Regex(
@@ -251,7 +354,8 @@ class SmsTransactionParser(
                 """(?:till|until|valid(?:\s+(?:till|until|upto|up to))?|expir(?:es|y|ing)?)\b.{0,40}wallet|""" +
                 """eager to serve|\b(?:voucher|coupon|promo(?:tion|tional)?|offer code|cashback)\b|""" +
                 """\bwill be credited\b|\b(?:win|unlock|grab|flat)\s+(?:rs\.?|inr|₹)|""" +
-                """up\s*to\s+(?:rs\.?|inr|₹))""",
+                """up\s*to\s+(?:rs\.?|inr|₹)|pre-approved|limited\s+period\s+offer|""" +
+                """exclusive\s+offer|don'?t\s+miss|hurry\s+up)""",
             RegexOption.IGNORE_CASE,
         )
         private val MERCHANT_PATTERNS = listOf(

@@ -114,6 +114,70 @@ class SmsTransactionParserTest {
     }
 
     @Test
+    fun marksRemainingCreditLimitAsNotAPayment() {
+        val body = "Your Axis Bank Credit Card XX1234 available limit is INR 1,38,717.00"
+        val parsed = parser.parse(single(body, address = "AX-AXISBK")).single()
+        assertEquals(13_871_700L, parsed.amount.minorUnits)
+        assertTrue(parsed.isPromotional)
+    }
+
+    @Test
+    fun usesCardSpendNotRemainingLimitWhenBothArePresent() {
+        val body = "Thank you for using your HDFC Bank Credit Card ending 1234 for Rs.25.00 " +
+            "at AMAZON on 23-09-26. Available limit: Rs 1,38,717.00"
+        val parsed = parser.parse(single(body)).single()
+        assertEquals(2_500L, parsed.amount.minorUnits)
+        assertEquals(TransactionType.DEBIT, parsed.type)
+        assertTrue(!parsed.isPromotional)
+    }
+
+    @Test
+    fun usesDollarSpendNotInrRemainingLimit() {
+        val body = "Payment of USD 25.00 made on your Axis Bank Credit Card XX1234 at NETFLIX. " +
+            "Remaining limit for the card is 1,38,717 INR"
+        val parsed = parser.parse(single(body, address = "AX-AXISBK")).single()
+        assertEquals(2_500L, parsed.amount.minorUnits)
+        assertEquals("USD", parsed.amount.currencyCode)
+        assertEquals(TransactionType.DEBIT, parsed.type)
+        assertTrue(!parsed.isPromotional)
+    }
+
+    @Test
+    fun marksOutstandingAndDueAlertsAsNotAPayment() {
+        val body = "Your HDFC Bank Credit Card XX1234 Total Due: Rs 12,000.00. " +
+            "Min Due: Rs 600.00. Due Date 05-10-26"
+        val parsed = parser.parse(single(body)).single()
+        assertTrue(parsed.isPromotional)
+    }
+
+    @Test
+    fun marksCreditLimitIncreaseAsNotAPayment() {
+        val body = "Your HDFC Bank Credit Card credit limit has been increased to Rs 2,00,000"
+        val parsed = parser.parse(single(body)).single()
+        assertTrue(parsed.isPromotional)
+    }
+
+    @Test
+    fun stillUsesDebitAmountWhenAvailableBalanceIsAlsoPrinted() {
+        val body = "HDFC Bank: Rs.250.00 debited from a/c XX1234 on 15-09-26 to VPA swiggy@paytm " +
+            "UPI Ref 376598505975. Avl bal Rs 12,000.00. Not you? Call 18002586161"
+        val parsed = parser.parse(single(body)).single()
+        assertEquals(25_000L, parsed.amount.minorUnits)
+        assertEquals(TransactionType.DEBIT, parsed.type)
+        assertTrue(!parsed.isPromotional)
+    }
+
+    @Test
+    fun doesNotTreatCreditCardWordingAsACredit() {
+        val body = "Rs.1,499.00 spent on your ICICI Bank Credit Card XX7788 at ZOMATO. " +
+            "Avl limit Rs.80,000.00"
+        val parsed = parser.parse(single(body)).single()
+        assertEquals(149_900L, parsed.amount.minorUnits)
+        assertEquals(TransactionType.DEBIT, parsed.type)
+        assertTrue(!parsed.isPromotional)
+    }
+
+    @Test
     fun marksWalletOfferAsPromotionalAndKeepsItVisible() {
         val body = "Lenskart is eager to serve you, Rs. 1000 credited in your wallet till 8 Dec. " +
             "Shop now to unlock your reward."

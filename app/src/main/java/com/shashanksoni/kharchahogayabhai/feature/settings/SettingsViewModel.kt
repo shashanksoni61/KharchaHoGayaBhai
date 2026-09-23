@@ -16,8 +16,11 @@ import com.shashanksoni.kharchahogayabhai.domain.usecase.ResetLocalDataUseCase
 import com.shashanksoni.kharchahogayabhai.domain.usecase.SmsScanMode
 import com.shashanksoni.kharchahogayabhai.security.SecurityPreferences
 import com.shashanksoni.kharchahogayabhai.security.SecuritySession
+import com.shashanksoni.kharchahogayabhai.sms.SmsInboxReader
 import com.shashanksoni.kharchahogayabhai.sms.SmsScanPreferences
 import java.time.Instant
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -43,6 +46,10 @@ data class SettingsUiState(
     val lastScanInboxTotal: Int = 0,
     /** Bank/UPI alerts recognised in the most recent scan this session. */
     val lastScanParsedCount: Int = 0,
+    /** Inbox rows the phone reports (OTPs and chats included). */
+    val phoneInboxCount: Int = 0,
+    /** Inbox + sent + drafts, for comparison with other SMS apps. */
+    val phoneAllSmsCount: Int = 0,
     val appLockEnabled: Boolean = false,
     val hideIncomeEnabled: Boolean = false,
     val resetCompleted: Boolean = false,
@@ -58,6 +65,8 @@ class SettingsViewModel(
     private val smsScanPreferences: SmsScanPreferences,
     private val securityPreferences: SecurityPreferences,
     private val securitySession: SecuritySession,
+    private val inboxReader: SmsInboxReader,
+    private val applicationScope: CoroutineScope,
 ) : ViewModel() {
 
     private val isResetting = MutableStateFlow(false)
@@ -68,6 +77,12 @@ class SettingsViewModel(
     private val lastScanScannedCount = MutableStateFlow(0)
     private val lastScanInboxTotal = MutableStateFlow(0)
     private val lastScanParsedCount = MutableStateFlow(0)
+    private val phoneInboxCount = MutableStateFlow(0)
+    private val phoneAllSmsCount = MutableStateFlow(0)
+
+    init {
+        refreshPhoneSmsCounts()
+    }
 
     private data class BusyState(
         val resetting: Boolean,
@@ -89,6 +104,8 @@ class SettingsViewModel(
         val lastScanScanned: Int,
         val lastScanInboxTotal: Int,
         val lastScanParsed: Int,
+        val phoneInboxCount: Int,
+        val phoneAllSmsCount: Int,
     )
 
     val uiState: StateFlow<SettingsUiState> = combine(
@@ -110,13 +127,29 @@ class SettingsViewModel(
             BusyState(resetting, scanning, completed, error, info)
         },
         combine(
-            transactionRepository.observeTransactionCount(),
-            transactionRepository.observeTransactionCountBySource(TransactionSource.SMS),
-            lastScanScannedCount,
-            lastScanInboxTotal,
-            lastScanParsedCount,
-        ) { total, fromSms, scanned, inboxTotal, parsed ->
-            CountsState(total, fromSms, scanned, inboxTotal, parsed)
+            combine(
+                transactionRepository.observeTransactionCount(),
+                transactionRepository.observeTransactionCountBySource(TransactionSource.SMS),
+            ) { total, fromSms -> total to fromSms },
+            combine(
+                lastScanScannedCount,
+                lastScanInboxTotal,
+                lastScanParsedCount,
+                phoneInboxCount,
+                phoneAllSmsCount,
+            ) { scanned, inboxTotal, parsed, phoneInbox, phoneAll ->
+                intArrayOf(scanned, inboxTotal, parsed, phoneInbox, phoneAll)
+            },
+        ) { stored, scan ->
+            CountsState(
+                total = stored.first,
+                fromSms = stored.second,
+                lastScanScanned = scan[0],
+                lastScanInboxTotal = scan[1],
+                lastScanParsed = scan[2],
+                phoneInboxCount = scan[3],
+                phoneAllSmsCount = scan[4],
+            )
         },
         combine(
             securityPreferences.appLockEnabledFlow,
@@ -137,6 +170,8 @@ class SettingsViewModel(
             lastScanScannedCount = counts.lastScanScanned,
             lastScanInboxTotal = counts.lastScanInboxTotal,
             lastScanParsedCount = counts.lastScanParsed,
+            phoneInboxCount = counts.phoneInboxCount,
+            phoneAllSmsCount = counts.phoneAllSmsCount,
             appLockEnabled = security.first,
             hideIncomeEnabled = security.second,
             resetCompleted = busy.completed,
@@ -180,7 +215,7 @@ class SettingsViewModel(
 
     private fun runSmsScan(mode: SmsScanMode) {
         if (isScanningSms.value || isResetting.value) return
-        viewModelScope.launch {
+        applicationScope.launch {
             isScanningSms.value = true
             errorMessage.value = null
             try {
@@ -191,13 +226,27 @@ class SettingsViewModel(
                         lastScanScannedCount.value = progress.scannedCount
                         lastScanInboxTotal.value = progress.inboxTotal
                         lastScanParsedCount.value = progress.parsedCount
+                        if (progress.allSmsCount > 0) {
+                            phoneAllSmsCount.value = progress.allSmsCount
+                        }
+                        phoneInboxCount.value = progress.inboxTotal
                     },
                 )
                 applySmsResult(result, fullRescan = mode == SmsScanMode.FULL)
+                refreshPhoneSmsCounts()
             } catch (error: Exception) {
                 errorMessage.value = error.message ?: "SMS scan failed"
             } finally {
                 isScanningSms.value = false
+            }
+        }
+    }
+
+    private fun refreshPhoneSmsCounts() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                phoneInboxCount.value = inboxReader.countInbox()
+                phoneAllSmsCount.value = inboxReader.countAllSms()
             }
         }
     }
@@ -290,6 +339,8 @@ class SettingsViewModel(
                     smsScanPreferences = container.smsScanPreferences,
                     securityPreferences = container.securityPreferences,
                     securitySession = container.securitySession,
+                    inboxReader = container.smsInboxReader,
+                    applicationScope = container.applicationScope,
                 )
             }
         }

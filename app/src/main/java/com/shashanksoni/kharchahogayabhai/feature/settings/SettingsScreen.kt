@@ -213,6 +213,8 @@ fun SettingsScreen(
                 SmsStatsBlock(
                     totalTransactions = uiState.totalTransactionCount,
                     smsTransactions = uiState.smsTransactionCount,
+                    phoneInboxCount = uiState.phoneInboxCount,
+                    phoneAllSmsCount = uiState.phoneAllSmsCount,
                     lastScanScanned = uiState.lastScanScannedCount,
                     lastScanInboxTotal = uiState.lastScanInboxTotal,
                     lastScanParsed = uiState.lastScanParsedCount,
@@ -393,6 +395,8 @@ private enum class SmsPermissionAction {
 private fun SmsStatsBlock(
     totalTransactions: Int,
     smsTransactions: Int,
+    phoneInboxCount: Int,
+    phoneAllSmsCount: Int,
     lastScanScanned: Int,
     lastScanInboxTotal: Int,
     lastScanParsed: Int,
@@ -408,6 +412,17 @@ private fun SmsStatsBlock(
             text = stringResource(R.string.settings_sms_stats_title),
             style = MaterialTheme.typography.labelLarge,
         )
+        if (phoneInboxCount > 0 || phoneAllSmsCount > 0) {
+            Text(
+                text = stringResource(R.string.settings_sms_stats_phone_inbox, phoneInboxCount),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = stringResource(R.string.settings_sms_stats_phone_all, phoneAllSmsCount),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Text(
             text = stringResource(R.string.settings_sms_stats_total, totalTransactions),
             style = MaterialTheme.typography.bodyMedium,

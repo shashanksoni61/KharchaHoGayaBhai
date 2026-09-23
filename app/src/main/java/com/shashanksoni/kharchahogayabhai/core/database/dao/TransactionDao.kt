@@ -51,6 +51,10 @@ interface TransactionDao {
                 AND transaction_sources.source = :source
             )
           )
+          AND (:minAmountMinor IS NULL OR amount_minor_units >= :minAmountMinor)
+          AND (:maxAmountMinor IS NULL OR amount_minor_units <= :maxAmountMinor)
+          AND (:excludePromotional = 0 OR is_promotional = 0)
+          AND (:uncategorisedOnly = 0 OR category_id IS NULL)
         ORDER BY transaction_date DESC, id DESC
         """,
     )
@@ -63,6 +67,10 @@ interface TransactionDao {
         filterByCategory: Int,
         categoryIds: List<Long>,
         searchQuery: String?,
+        minAmountMinor: Long?,
+        maxAmountMinor: Long?,
+        excludePromotional: Int,
+        uncategorisedOnly: Int,
     ): Flow<List<TransactionEntity>>
 
     @Transaction
@@ -100,6 +108,13 @@ interface TransactionDao {
         """,
     )
     fun observeDateBounds(): Flow<TransactionDateBoundsProjection>
+
+    /** Every stored timestamp, used to build month chips that actually have data. */
+    @Query("SELECT transaction_date FROM transactions WHERE is_promotional = 0")
+    fun observeTransactionDates(): Flow<List<Long>>
+
+    @Query("SELECT * FROM transactions WHERE id = :transactionId")
+    suspend fun findById(transactionId: Long): TransactionEntity?
 
     @Query("SELECT COUNT(*) FROM transactions")
     suspend fun countTransactions(): Int

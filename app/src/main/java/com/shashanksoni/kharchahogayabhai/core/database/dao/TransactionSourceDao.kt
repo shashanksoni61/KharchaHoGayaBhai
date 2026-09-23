@@ -27,6 +27,9 @@ interface TransactionSourceDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSourceRecords(records: List<TransactionSourceRecordEntity>)
 
+    @Query("SELECT * FROM transaction_sources WHERE transaction_id = :transactionId")
+    suspend fun findSourcesOf(transactionId: Long): List<TransactionSourceRecordEntity>
+
     /** Lets an import skip input it has already ingested before parsing it again. */
     @Query(
         """

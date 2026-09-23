@@ -56,8 +56,16 @@ class ImportSmsInboxUseCase(
             scanPreferences.clearCursor()
         }
 
-        val inboxTotal = runCatching { inboxReader.countInbox() }.getOrDefault(0)
-        onProgress(SmsScanProgress(scannedCount = 0, inboxTotal = inboxTotal, parsedCount = 0))
+        val reportedInbox = runCatching { inboxReader.countInbox() }.getOrDefault(0)
+        val allSmsCount = runCatching { inboxReader.countAllSms() }.getOrDefault(0)
+        onProgress(
+            SmsScanProgress(
+                scannedCount = 0,
+                inboxTotal = reportedInbox,
+                allSmsCount = allSmsCount,
+                parsedCount = 0,
+            ),
+        )
 
         val startingCursor = scanPreferences.scanCursor()
         val allOutcomes = mutableListOf<IngestOutcome>()
@@ -65,14 +73,22 @@ class ImportSmsInboxUseCase(
         var scannedCount = 0
         var parsedCount = 0
         var pagesRead = 0
+        var offset = 0
+        var lastPageFirstId: Long? = null
+        var useOffsetPages = mode == SmsScanMode.FULL || startingCursor == null
 
         while (true) {
-            val cursor = scanPreferences.scanCursor()
-            val messages = try {
-                inboxReader.readInbox(
-                    afterExclusive = cursor,
-                    limit = SCAN_PAGE_SIZE,
-                )
+            val page = try {
+                if (useOffsetPages) {
+                    inboxReader.readInboxPage(offset = offset, limit = SCAN_PAGE_SIZE)
+                } else {
+                    val cursor = scanPreferences.scanCursor()
+                    if (cursor == null) {
+                        inboxReader.readInboxPage(offset = offset, limit = SCAN_PAGE_SIZE)
+                    } else {
+                        inboxReader.readInboxAfter(cursor, limit = SCAN_PAGE_SIZE)
+                    }
+                }
             } catch (error: SecurityException) {
                 return failed(
                     message = "SMS permission is required to read transaction alerts.",
@@ -86,7 +102,7 @@ class ImportSmsInboxUseCase(
                 )
             }
 
-            if (messages.isEmpty()) {
+            if (page.rowsRead == 0) {
                 if (pagesRead == 0) {
                     if (mode == SmsScanMode.INCREMENTAL && startingCursor != null) {
                         scanPreferences.advanceCursorTo(clock.instant())
@@ -104,14 +120,27 @@ class ImportSmsInboxUseCase(
                 break
             }
 
+            val firstId = page.messages.firstOrNull()?.id
+            if (useOffsetPages &&
+                lastPageFirstId != null &&
+                firstId != null &&
+                firstId == lastPageFirstId
+            ) {
+                // Provider ignored offset. Keep going from the date cursor instead.
+                useOffsetPages = false
+                continue
+            }
+            lastPageFirstId = firstId
             pagesRead += 1
-            scannedCount += messages.size
-            val newestReadMessage = messages.maxWithOrNull(
+            scannedCount += page.rowsRead
+            offset += page.rowsRead
+
+            val newestReadMessage = page.messages.maxWithOrNull(
                 compareBy({ it.receivedAt }, { it.id }),
             )
             newestReadMessage?.let(scanPreferences::advanceCursorPast)
 
-            val input = SmsParseInput(messages)
+            val input = SmsParseInput(page.messages)
             val parsed = if (smsParser.canParse(input)) {
                 smsParser.parse(input)
             } else {
@@ -131,7 +160,8 @@ class ImportSmsInboxUseCase(
             onProgress(
                 SmsScanProgress(
                     scannedCount = scannedCount,
-                    inboxTotal = inboxTotal,
+                    inboxTotal = maxOf(reportedInbox, scannedCount),
+                    allSmsCount = allSmsCount,
                     parsedCount = parsedCount,
                 ),
             )
@@ -266,6 +296,6 @@ class ImportSmsInboxUseCase(
     }
 
     companion object {
-        const val SCAN_PAGE_SIZE = 1_000
+        const val SCAN_PAGE_SIZE = 500
     }
 }

@@ -11,12 +11,12 @@ import com.shashanksoni.kharchahogayabhai.domain.model.Category
 import com.shashanksoni.kharchahogayabhai.domain.model.InstantRange
 import com.shashanksoni.kharchahogayabhai.domain.model.Money
 import com.shashanksoni.kharchahogayabhai.domain.model.Transaction
-import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDateBounds
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionFilter
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionType
 import com.shashanksoni.kharchahogayabhai.domain.repository.CategoryRepository
 import com.shashanksoni.kharchahogayabhai.domain.repository.TransactionRepository
+import com.shashanksoni.kharchahogayabhai.navigation.PendingTransactionMonth
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -59,7 +60,9 @@ data class TransactionMonthGroup(
     val creditTotal: Money,
     val debitTotal: Money,
 ) {
+    val net: Money get() = creditTotal - debitTotal
     val transactionCount: Int get() = dayGroups.sumOf { it.transactionCount }
+    val uncategorisedCount: Int get() = dayGroups.sumOf { it.uncategorisedCount }
 }
 
 /** How rows inside one day accordion are ordered. Latest-first is the default. */
@@ -80,10 +83,30 @@ data class TransactionListUiState(
     val searchQuery: String = "",
     val selectedType: TransactionType? = null,
     val selectedSource: TransactionSource? = null,
+    val minAmountInput: String = "",
+    val maxAmountInput: String = "",
+    val minAmountMinorUnits: Long? = null,
+    val selectedCategoryIds: Set<Long> = emptySet(),
+    val selectedAccount: String? = null,
+    val accounts: List<String> = emptyList(),
+    val excludePromotional: Boolean = false,
+    val uncategorisedOnly: Boolean = false,
     val isLoading: Boolean = true,
 ) {
     val transactionCount: Int get() = monthGroups.sumOf { it.transactionCount }
     val isEmpty: Boolean get() = !isLoading && monthGroups.isEmpty()
+    val hasAdvancedFilters: Boolean
+        get() = minAmountMinorUnits != null ||
+            maxAmountInput.isNotBlank() ||
+            selectedCategoryIds.isNotEmpty() ||
+            selectedAccount != null ||
+            uncategorisedOnly
+    /** Any list filter other than the month chips. */
+    val hasSheetFilters: Boolean
+        get() = selectedType != null ||
+            selectedSource != null ||
+            hasAdvancedFilters ||
+            !excludePromotional
 
     fun isMonthCollapsed(month: YearMonth): Boolean = month in collapsedMonths
 
@@ -101,29 +124,46 @@ class TransactionListViewModel(
     private val categoryRepository: CategoryRepository,
     private val zone: ZoneId,
     private val clock: Clock = Clock.systemUTC(),
+    private val pendingTransactionMonth: PendingTransactionMonth? = null,
 ) : ViewModel() {
 
     private val currentMonth: YearMonth = YearMonth.now(clock.withZone(zone))
     private val selectedMonth = MutableStateFlow<YearMonth?>(currentMonth)
     private val filter = MutableStateFlow(
-        TransactionFilter(dateRange = InstantRange.ofMonth(currentMonth, zone)),
+        TransactionFilter(
+            dateRange = InstantRange.ofMonth(currentMonth, zone),
+            excludePromotional = true,
+        ),
     )
     private val collapsedMonths = MutableStateFlow<Set<YearMonth>>(emptySet())
     private val collapsedDates = MutableStateFlow<Set<LocalDate>>(emptySet())
     private val daySorts = MutableStateFlow<Map<LocalDate, DayAmountSort>>(emptyMap())
+    private val minAmountInput = MutableStateFlow("")
+    private val maxAmountInput = MutableStateFlow("")
+    /** Keeps a dashboard-requested month until the user picks a different chip. */
+    private var holdRequestedMonth = false
 
     private val availableMonths: StateFlow<List<YearMonth>> =
-        transactionRepository.observeDateBounds()
-            .map { bounds -> monthsCoveredBy(bounds) }
+        transactionRepository.observeTransactionDates()
+            .map { instants -> monthsWithData(instants) }
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                initialValue = listOf(currentMonth),
+                initialValue = emptyList(),
             )
 
     init {
         viewModelScope.launch {
+            pendingTransactionMonth?.month?.collect { month ->
+                if (month != null) {
+                    selectMonth(month, hold = true)
+                    pendingTransactionMonth.consume()
+                }
+            }
+        }
+        viewModelScope.launch {
             availableMonths.collect { months ->
+                if (holdRequestedMonth) return@collect
                 val selected = selectedMonth.value
                 if (selected != null && months.isNotEmpty() && selected !in months) {
                     selectMonth(months.first())
@@ -138,16 +178,22 @@ class TransactionListViewModel(
             filter,
             selectedMonth,
             availableMonths,
-        ) { activeFilter, month, months ->
-            Triple(activeFilter, month, months)
+            minAmountInput,
+            maxAmountInput,
+        ) { activeFilter, month, months, minInput, maxInput ->
+            FilterHeader(activeFilter, month, months, minInput, maxInput)
         },
         filter.flatMapLatest(transactionRepository::observeTransactions),
-        categoryRepository.observeCategories(),
+        combine(
+            categoryRepository.observeCategories(),
+            transactionRepository.observeAccountIdentifiers(),
+        ) { categories, accounts -> categories to accounts },
         combine(collapsedMonths, collapsedDates, daySorts) { months, dates, sorts ->
             Triple(months, dates, sorts)
         },
-    ) { filterState, transactions, categories, grouping ->
-        val (activeFilter, month, months) = filterState
+    ) { header, transactions, catalogue, grouping ->
+        val (activeFilter, month, months, minInput, maxInput) = header
+        val (categories, accounts) = catalogue
         val (collapsedMonthSet, collapsedDateSet, sorts) = grouping
         val categoriesById = categories.associateBy { it.id }
         TransactionListUiState(
@@ -161,6 +207,14 @@ class TransactionListViewModel(
             searchQuery = activeFilter.searchQuery.orEmpty(),
             selectedType = activeFilter.type,
             selectedSource = activeFilter.source,
+            minAmountInput = minInput,
+            maxAmountInput = maxInput,
+            minAmountMinorUnits = activeFilter.minAmountMinorUnits,
+            selectedCategoryIds = activeFilter.categoryIds,
+            selectedAccount = activeFilter.accountIdentifier,
+            accounts = accounts,
+            excludePromotional = activeFilter.excludePromotional,
+            uncategorisedOnly = activeFilter.uncategorisedOnly,
             isLoading = false,
         )
     }.stateIn(
@@ -182,8 +236,95 @@ class TransactionListViewModel(
         filter.update { it.copy(source = if (it.source == source) null else source) }
     }
 
+    fun setMinAmountInput(raw: String) {
+        minAmountInput.value = raw
+        filter.update { it.copy(minAmountMinorUnits = parseAmountMinor(raw)) }
+    }
+
+    fun setMaxAmountInput(raw: String) {
+        maxAmountInput.value = raw
+        filter.update { it.copy(maxAmountMinorUnits = parseAmountMinor(raw)) }
+    }
+
+    /** Quick “at least this many rupees”. Tap the active chip again to clear. */
+    fun toggleMinAmountPreset(rupees: Long) {
+        val minor = rupees * 100L
+        if (filter.value.minAmountMinorUnits == minor && maxAmountInput.value.isBlank()) {
+            minAmountInput.value = ""
+            filter.update { it.copy(minAmountMinorUnits = null) }
+            return
+        }
+        minAmountInput.value = rupees.toString()
+        maxAmountInput.value = ""
+        filter.update { it.copy(minAmountMinorUnits = minor, maxAmountMinorUnits = null) }
+    }
+
+    fun toggleCategoryFilter(categoryId: Long) {
+        filter.update { current ->
+            val next = if (categoryId in current.categoryIds) {
+                current.categoryIds - categoryId
+            } else {
+                current.categoryIds + categoryId
+            }
+            current.copy(categoryIds = next, uncategorisedOnly = false)
+        }
+    }
+
+    fun toggleAccountFilter(account: String?) {
+        filter.update { it.copy(accountIdentifier = if (it.accountIdentifier == account) null else account) }
+    }
+
+    fun setExcludePromotional(exclude: Boolean) {
+        filter.update { it.copy(excludePromotional = exclude) }
+    }
+
+    fun setUncategorisedOnly(only: Boolean) {
+        filter.update {
+            it.copy(
+                uncategorisedOnly = only,
+                categoryIds = if (only) emptySet() else it.categoryIds,
+            )
+        }
+    }
+
+    fun clearNonMonthFilters() {
+        minAmountInput.value = ""
+        maxAmountInput.value = ""
+        filter.update {
+            it.copy(
+                type = null,
+                source = null,
+                minAmountMinorUnits = null,
+                maxAmountMinorUnits = null,
+                categoryIds = emptySet(),
+                accountIdentifier = null,
+                excludePromotional = true,
+                uncategorisedOnly = false,
+            )
+        }
+    }
+
+    fun clearAdvancedFilters() {
+        minAmountInput.value = ""
+        maxAmountInput.value = ""
+        filter.update {
+            it.copy(
+                minAmountMinorUnits = null,
+                maxAmountMinorUnits = null,
+                categoryIds = emptySet(),
+                accountIdentifier = null,
+                excludePromotional = true,
+                uncategorisedOnly = false,
+            )
+        }
+    }
+
+    private fun parseAmountMinor(raw: String): Long? =
+        raw.trim().takeIf { it.isNotEmpty() }?.let(Money::parseMajorUnitsOrNull)?.minorUnits
+
     /** Null means every month; otherwise only that calendar month is loaded. */
-    fun selectMonth(month: YearMonth?) {
+    fun selectMonth(month: YearMonth?, hold: Boolean = false) {
+        holdRequestedMonth = hold
         selectedMonth.value = month
         filter.update {
             it.copy(dateRange = month?.let { chosen -> InstantRange.ofMonth(chosen, zone) })
@@ -237,16 +378,12 @@ class TransactionListViewModel(
         }
     }
 
-    private fun monthsCoveredBy(bounds: TransactionDateBounds): List<YearMonth> {
-        val latest = bounds.latest?.let { YearMonth.from(it.atZone(zone)) } ?: currentMonth
-        val earliest = bounds.earliest?.let { YearMonth.from(it.atZone(zone)) } ?: latest
-        val months = mutableListOf<YearMonth>()
-        var cursor = latest
-        while (!cursor.isBefore(earliest)) {
-            months += cursor
-            cursor = cursor.minusMonths(1)
-        }
-        return months
+    private fun monthsWithData(instants: List<Instant>): List<YearMonth> {
+        val months = instants
+            .map { YearMonth.from(it.atZone(zone)) }
+            .distinct()
+            .sortedDescending()
+        return months.ifEmpty { listOf(currentMonth) }
     }
 
     private fun groupByMonth(
@@ -324,6 +461,14 @@ class TransactionListViewModel(
         )
     }
 
+    private data class FilterHeader(
+        val filter: TransactionFilter,
+        val selectedMonth: YearMonth?,
+        val availableMonths: List<YearMonth>,
+        val minAmountInput: String,
+        val maxAmountInput: String,
+    )
+
     companion object {
         private const val STOP_TIMEOUT_MILLIS = 5_000L
 
@@ -333,6 +478,7 @@ class TransactionListViewModel(
                     transactionRepository = container.transactionRepository,
                     categoryRepository = container.categoryRepository,
                     zone = container.zone,
+                    pendingTransactionMonth = container.pendingTransactionMonth,
                 )
             }
         }

@@ -189,6 +189,9 @@ class GetMonthlyDashboardUseCaseTest {
         override fun observeDateBounds(): Flow<TransactionDateBounds> =
             error("Not needed by the dashboard")
 
+        override fun observeTransactionDates(): Flow<List<Instant>> =
+            error("Not needed by the dashboard")
+
         override fun observeAccountIdentifiers(): Flow<List<String>> =
             error("Not needed by the dashboard")
 

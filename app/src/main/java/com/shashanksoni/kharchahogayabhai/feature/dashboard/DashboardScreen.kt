@@ -53,7 +53,7 @@ private const val HIDDEN_AMOUNT = "••••••"
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel,
-    onSeeAllTransactions: () -> Unit,
+    onSeeAllTransactions: (java.time.YearMonth) -> Unit,
     onTransactionClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -87,7 +87,7 @@ fun DashboardScreen(
         authError = authError,
         onPreviousMonth = viewModel::showPreviousMonth,
         onNextMonth = viewModel::showNextMonth,
-        onSeeAllTransactions = onSeeAllTransactions,
+        onSeeAllTransactions = { onSeeAllTransactions(uiState.selectedMonth) },
         onTransactionClick = onTransactionClick,
         onSetCategory = viewModel::setCategory,
         modifier = modifier,
@@ -167,6 +167,7 @@ private fun DashboardContent(
             InsightsCard(
                 dashboard = dashboard,
                 incomeHidden = incomeHidden,
+                onClick = onSeeAllTransactions,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
@@ -216,6 +217,7 @@ private fun DashboardContent(
         item {
             SectionCard(
                 title = stringResource(R.string.dashboard_daily_spending),
+                onClick = onSeeAllTransactions,
                 modifier = Modifier.padding(horizontal = 16.dp),
             ) {
                 DailySpendingChart(days = dashboard.dailySpending)
@@ -297,6 +299,7 @@ private fun BalanceCard(
 private fun InsightsCard(
     dashboard: MonthlyDashboard,
     incomeHidden: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val slices = remember(dashboard.categoryBreakdown) {
@@ -320,6 +323,7 @@ private fun InsightsCard(
 
     SectionCard(
         title = stringResource(R.string.dashboard_insights),
+        onClick = onClick,
         modifier = modifier,
     ) {
         Box(

@@ -7,6 +7,7 @@ import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDetail
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionFilter
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSummary
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -27,6 +28,9 @@ interface TransactionRepository {
 
     /** Earliest and latest transaction times, used to build month filter chips. */
     fun observeDateBounds(): Flow<TransactionDateBounds>
+
+    /** Stored transaction instants, so month chips only appear when that month has rows. */
+    fun observeTransactionDates(): Flow<List<Instant>>
 
     /** Distinct account tails currently present, for the account filter. */
     fun observeAccountIdentifiers(): Flow<List<String>>

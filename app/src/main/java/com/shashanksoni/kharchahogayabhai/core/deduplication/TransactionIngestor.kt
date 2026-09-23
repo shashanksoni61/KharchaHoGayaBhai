@@ -12,6 +12,7 @@ import com.shashanksoni.kharchahogayabhai.domain.model.IngestOutcome
 import com.shashanksoni.kharchahogayabhai.domain.model.ParseStatus
 import com.shashanksoni.kharchahogayabhai.domain.model.ParsedTransaction
 import com.shashanksoni.kharchahogayabhai.domain.model.Transaction
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 
 /**
  * Writes parsed transactions into the local store with deduplication.
@@ -47,7 +48,7 @@ class TransactionIngestor(
         if (sourceId != null) {
             val existingSource = transactionSourceDao.findBySourceIdentifier(parsed.source, sourceId)
             if (existingSource != null) {
-                return IngestOutcome.DUPLICATE_SKIPPED
+                return reclassifyExisting(existingSource.transactionId, parsed)
             }
         }
 
@@ -57,25 +58,78 @@ class TransactionIngestor(
             return insertNew(normalized)
         }
 
-        findDuplicate(normalized.transaction)?.let { existing ->
+        findDuplicate(normalized)?.let { existing ->
             return mergeIntoExisting(existing, normalized)
         }
 
         return insertNew(normalized)
     }
 
-    private suspend fun findDuplicate(incoming: Transaction): Transaction? {
-        transactionDao.findByFingerprint(incoming.fingerprint)?.let { return it.toDomain() }
+    private suspend fun findDuplicate(incoming: NormalizedTransaction): Transaction? {
+        val transaction = incoming.transaction
+        transactionDao.findByFingerprint(transaction.fingerprint)?.let { entity ->
+            val existing = entity.toDomain()
+            if (isDistinctSmsWithSameFieldFingerprint(incoming, existing)) {
+                return null
+            }
+            return existing
+        }
 
-        val reference = incoming.normalizedReference ?: return null
+        val reference = transaction.normalizedReference ?: return null
         val candidates = transactionDao.findByNormalizedReference(reference)
         return candidates
             .map { it.toDomain() }
             .firstOrNull { candidate ->
-                candidate.amount.minorUnits == incoming.amount.minorUnits &&
-                    candidate.amount.currencyCode == incoming.amount.currencyCode &&
-                    candidate.type == incoming.type
+                candidate.amount.minorUnits == transaction.amount.minorUnits &&
+                    candidate.amount.currencyCode == transaction.amount.currencyCode &&
+                    candidate.type == transaction.type
             }
+    }
+
+    /**
+     * Field fingerprints ignore time and SMS id, so two Axis alerts on the same
+     * day for the same amount used to collapse into one row. Distinct inbox ids
+     * are different payments unless they share a bank UTR.
+     */
+    private suspend fun isDistinctSmsWithSameFieldFingerprint(
+        incoming: NormalizedTransaction,
+        existing: Transaction,
+    ): Boolean {
+        if (incoming.sourceRecord.source != TransactionSource.SMS) return false
+        val incomingKey = incoming.sourceRecord.sourceIdentifier ?: return false
+        if (!incoming.transaction.normalizedReference.isNullOrBlank() &&
+            incoming.transaction.normalizedReference == existing.normalizedReference
+        ) {
+            return false
+        }
+        val existingSmsKeys = transactionSourceDao.findSourcesOf(existing.id)
+            .filter { it.source == TransactionSource.SMS }
+            .mapNotNull { it.sourceIdentifier }
+        return existingSmsKeys.isNotEmpty() && incomingKey !in existingSmsKeys
+    }
+
+    /**
+     * The same SMS id is not ingested twice, but a later parser can flip an
+     * older row to promotional (limit / offer / due alerts that used to look
+     * like payments).
+     */
+    private suspend fun reclassifyExisting(
+        transactionId: Long,
+        parsed: ParsedTransaction,
+    ): IngestOutcome {
+        val existing = transactionDao.findById(transactionId)?.toDomain()
+            ?: return IngestOutcome.DUPLICATE_SKIPPED
+        val incoming = normalizer.normalize(parsed).transaction
+        if (existing.isPromotional == incoming.isPromotional) {
+            return IngestOutcome.DUPLICATE_SKIPPED
+        }
+        transactionDao.updateTransaction(
+            existing.copy(
+                isPromotional = incoming.isPromotional,
+                updatedAt = incoming.updatedAt,
+            ).toEntity(),
+        )
+        return IngestOutcome.MERGED
     }
 
     private suspend fun mergeIntoExisting(
@@ -96,7 +150,12 @@ class TransactionIngestor(
     }
 
     private suspend fun insertNew(normalized: NormalizedTransaction): IngestOutcome {
-        val id = transactionDao.insertTransaction(normalized.transaction.toEntity())
+        var transaction = normalized.transaction
+        if (transactionDao.findByFingerprint(transaction.fingerprint) != null) {
+            val extra = normalized.sourceRecord.sourceIdentifier ?: "extra"
+            transaction = transaction.copy(fingerprint = "${transaction.fingerprint}+$extra")
+        }
+        val id = transactionDao.insertTransaction(transaction.toEntity())
         transactionSourceDao.insertSourceRecords(
             listOf(normalized.sourceRecord.toEntity(id)),
         )

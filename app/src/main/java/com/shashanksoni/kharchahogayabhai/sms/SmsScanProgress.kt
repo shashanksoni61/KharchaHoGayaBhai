@@ -4,5 +4,6 @@ package com.shashanksoni.kharchahogayabhai.sms
 data class SmsScanProgress(
     val scannedCount: Int,
     val inboxTotal: Int,
+    val allSmsCount: Int = 0,
     val parsedCount: Int,
 )

@@ -37,8 +37,9 @@ data class Transaction(
     val fingerprint: String,
     val parseStatus: ParseStatus = ParseStatus.PARSED,
     /**
-     * Marketing / wallet-offer SMS kept in the list so the user can see them,
-     * but excluded from money-in / money-out totals.
+     * Offers, remaining-limit / due / balance alerts, and similar SMS that
+     * mention rupees but are not a payment. Hidden from the list by default
+     * and excluded from money-in / money-out totals.
      */
     val isPromotional: Boolean = false,
     val notes: String? = null,

@@ -22,29 +22,54 @@ fun SectionCard(
     title: String,
     modifier: Modifier = Modifier,
     trailing: @Composable (() -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+    val colors = CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+    )
+    val shape = RoundedCornerShape(28.dp)
+    val cardModifier = modifier.fillMaxWidth()
+    if (onClick != null) {
+        Card(
+            onClick = onClick,
+            modifier = cardModifier,
+            shape = shape,
+            colors = colors,
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(text = title, style = MaterialTheme.typography.titleSmall)
-                trailing?.invoke()
-            }
-            content()
+            SectionCardBody(title = title, trailing = trailing, content = content)
         }
+    } else {
+        Card(
+            modifier = cardModifier,
+            shape = shape,
+            colors = colors,
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        ) {
+            SectionCardBody(title = title, trailing = trailing, content = content)
+        }
+    }
+}
+
+@Composable
+private fun SectionCardBody(
+    title: String,
+    trailing: @Composable (() -> Unit)?,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier.padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(text = title, style = MaterialTheme.typography.titleSmall)
+            trailing?.invoke()
+        }
+        content()
     }
 }
