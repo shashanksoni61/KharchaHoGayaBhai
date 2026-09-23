@@ -6,6 +6,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import com.shashanksoni.kharchahogayabhai.core.database.entity.TransactionEntity
+import com.shashanksoni.kharchahogayabhai.core.database.projection.TransactionDateBoundsProjection
 import com.shashanksoni.kharchahogayabhai.core.database.projection.TransactionSummaryProjection
 import com.shashanksoni.kharchahogayabhai.core.database.relation.TransactionWithDetails
 import kotlinx.coroutines.flow.Flow
@@ -73,6 +74,7 @@ interface TransactionDao {
         SELECT transaction_date, type, amount_minor_units, currency_code, category_id
         FROM transactions
         WHERE transaction_date >= :startMillis AND transaction_date < :endMillisExclusive
+          AND is_promotional = 0
         ORDER BY transaction_date ASC
         """,
     )
@@ -91,8 +93,36 @@ interface TransactionDao {
     )
     fun observeAccountIdentifiers(): Flow<List<String>>
 
+    @Query(
+        """
+        SELECT MIN(transaction_date) AS min_date, MAX(transaction_date) AS max_date
+        FROM transactions
+        """,
+    )
+    fun observeDateBounds(): Flow<TransactionDateBoundsProjection>
+
     @Query("SELECT COUNT(*) FROM transactions")
     suspend fun countTransactions(): Int
+
+    /** Live total, for the Settings "transactions in system" counter. */
+    @Query("SELECT COUNT(*) FROM transactions")
+    fun observeTransactionCount(): Flow<Int>
+
+    /**
+     * Live count of transactions that have [source] as a contributing source
+     * (e.g. how many came from SMS), for the Settings breakdown.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) FROM transactions
+        WHERE EXISTS (
+          SELECT 1 FROM transaction_sources
+          WHERE transaction_sources.transaction_id = transactions.id
+            AND transaction_sources.source = :source
+        )
+        """,
+    )
+    fun observeTransactionCountBySource(source: String): Flow<Int>
 
     /** Level 3 duplicate check: exact identity match. */
     @Query("SELECT * FROM transactions WHERE fingerprint = :fingerprint LIMIT 1")

@@ -47,6 +47,9 @@ data class MonthlyDashboard(
     val previousMonthTotals: MonthTotals?,
     val categoryBreakdown: List<CategorySpending>,
     val dailySpending: List<DailySpending>,
+    /** Newest transactions in this month, for the operations list. */
+    val recentTransactions: List<Transaction> = emptyList(),
+    val categories: List<Category> = emptyList(),
 ) {
     val hasData: Boolean get() = totals.transactionCount > 0
 

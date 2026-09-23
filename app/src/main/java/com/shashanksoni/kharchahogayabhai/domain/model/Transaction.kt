@@ -36,6 +36,11 @@ data class Transaction(
     val primarySource: TransactionSource,
     val fingerprint: String,
     val parseStatus: ParseStatus = ParseStatus.PARSED,
+    /**
+     * Marketing / wallet-offer SMS kept in the list so the user can see them,
+     * but excluded from money-in / money-out totals.
+     */
+    val isPromotional: Boolean = false,
     val notes: String? = null,
     val createdAt: Instant,
     val updatedAt: Instant,
@@ -48,6 +53,8 @@ data class Transaction(
             ?: UNTITLED_TRANSACTION
 
     val isDebit: Boolean get() = type == TransactionType.DEBIT
+
+    val countsTowardTotals: Boolean get() = !isPromotional
 
     companion object {
         const val UNSAVED_ID = 0L

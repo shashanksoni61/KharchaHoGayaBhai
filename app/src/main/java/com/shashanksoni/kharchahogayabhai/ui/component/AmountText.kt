@@ -20,10 +20,11 @@ fun SignedAmountText(
     type: TransactionType,
     modifier: Modifier = Modifier,
     style: TextStyle = MaterialTheme.typography.titleMedium,
+    hidden: Boolean = false,
 ) {
     val colors = financeColors
     Text(
-        text = MoneyFormatter.formatSigned(amount, type),
+        text = if (hidden) "••••••" else MoneyFormatter.formatSigned(amount, type),
         modifier = modifier,
         color = if (type == TransactionType.DEBIT) colors.expense else colors.income,
         style = style.copy(fontFeatureSettings = "tnum"),

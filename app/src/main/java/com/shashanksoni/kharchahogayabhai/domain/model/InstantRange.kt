@@ -1,6 +1,7 @@
 package com.shashanksoni.kharchahogayabhai.domain.model
 
 import java.time.Instant
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 
@@ -23,6 +24,11 @@ data class InstantRange(
 
     companion object {
         /** Calendar month boundaries in [zone]; month filtering must be timezone-aware. */
+        fun ofDay(date: LocalDate, zone: ZoneId): InstantRange = InstantRange(
+            start = date.atStartOfDay(zone).toInstant(),
+            endExclusive = date.plusDays(1).atStartOfDay(zone).toInstant(),
+        )
+
         fun ofMonth(month: YearMonth, zone: ZoneId): InstantRange = InstantRange(
             start = month.atDay(1).atStartOfDay(zone).toInstant(),
             endExclusive = month.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant(),

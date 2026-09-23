@@ -7,7 +7,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.shashanksoni.kharchahogayabhai.di.AppContainer
 import com.shashanksoni.kharchahogayabhai.domain.model.MonthlyDashboard
+import com.shashanksoni.kharchahogayabhai.domain.repository.TransactionRepository
 import com.shashanksoni.kharchahogayabhai.domain.usecase.GetMonthlyDashboardUseCase
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,6 +35,7 @@ data class DashboardUiState(
 
 class DashboardViewModel(
     private val getMonthlyDashboard: GetMonthlyDashboardUseCase,
+    private val transactionRepository: TransactionRepository,
     zone: ZoneId,
     clock: Clock = Clock.systemUTC(),
 ) : ViewModel() {
@@ -63,6 +66,12 @@ class DashboardViewModel(
         selectedMonth.update { month -> if (month < currentMonth) month.plusMonths(1) else month }
     }
 
+    fun setCategory(transactionId: Long, categoryId: Long?) {
+        viewModelScope.launch {
+            transactionRepository.setCategory(transactionId, categoryId)
+        }
+    }
+
     private fun uiStateOf(month: YearMonth, dashboard: MonthlyDashboard?) = DashboardUiState(
         selectedMonth = month,
         currentMonth = currentMonth,
@@ -77,6 +86,7 @@ class DashboardViewModel(
             initializer {
                 DashboardViewModel(
                     getMonthlyDashboard = container.getMonthlyDashboard,
+                    transactionRepository = container.transactionRepository,
                     zone = container.zone,
                 )
             }

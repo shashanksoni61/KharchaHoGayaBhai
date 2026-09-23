@@ -29,10 +29,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.shashanksoni.kharchahogayabhai.R
+import com.shashanksoni.kharchahogayabhai.core.common.DateTimeFormatters
 import com.shashanksoni.kharchahogayabhai.domain.model.Category
 import com.shashanksoni.kharchahogayabhai.domain.model.Transaction
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import com.shashanksoni.kharchahogayabhai.ui.util.CategoryVisuals
+import java.time.ZoneId
 
 /** One transaction in a list: category icon, title, subtitle, signed amount. */
 @Composable
@@ -43,6 +45,7 @@ fun TransactionRow(
     modifier: Modifier = Modifier,
     categories: List<Category> = emptyList(),
     onCategorySelected: ((Long?) -> Unit)? = null,
+    hideIncome: Boolean = false,
 ) {
     Row(
         modifier = modifier
@@ -79,11 +82,32 @@ fun TransactionRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (transaction.isPromotional) {
+                    Text(
+                        text = stringResource(R.string.transactions_promo),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
                 SourceBadge(source = transaction.primarySource)
             }
         }
 
-        SignedAmountText(amount = transaction.amount, type = transaction.type)
+        Column(horizontalAlignment = Alignment.End) {
+            SignedAmountText(
+                amount = transaction.amount,
+                type = transaction.type,
+                hidden = hideIncome && !transaction.isDebit,
+            )
+            Text(
+                text = DateTimeFormatters.timeOfDay(
+                    transaction.transactionDate,
+                    ZoneId.systemDefault(),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

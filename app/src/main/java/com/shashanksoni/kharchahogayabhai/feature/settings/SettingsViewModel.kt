@@ -8,10 +8,14 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.shashanksoni.kharchahogayabhai.di.AppContainer
 import com.shashanksoni.kharchahogayabhai.domain.model.ImportResult
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionLabel
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import com.shashanksoni.kharchahogayabhai.domain.repository.LabelRepository
+import com.shashanksoni.kharchahogayabhai.domain.repository.TransactionRepository
 import com.shashanksoni.kharchahogayabhai.domain.usecase.ImportSmsInboxUseCase
 import com.shashanksoni.kharchahogayabhai.domain.usecase.ResetLocalDataUseCase
 import com.shashanksoni.kharchahogayabhai.domain.usecase.SmsScanMode
+import com.shashanksoni.kharchahogayabhai.security.SecurityPreferences
+import com.shashanksoni.kharchahogayabhai.security.SecuritySession
 import com.shashanksoni.kharchahogayabhai.sms.SmsScanPreferences
 import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +33,18 @@ data class SettingsUiState(
     val lastSmsScanAt: Instant? = null,
     val autoSmsScanOnOpen: Boolean = true,
     val listenSmsInBackground: Boolean = true,
+    /** Total transactions currently stored across every source. */
+    val totalTransactionCount: Int = 0,
+    /** How many of those transactions came from an SMS alert. */
+    val smsTransactionCount: Int = 0,
+    /** Messages inspected in the most recent scan this session (0 until one runs). */
+    val lastScanScannedCount: Int = 0,
+    /** Inbox size reported by the provider when the last scan started. */
+    val lastScanInboxTotal: Int = 0,
+    /** Bank/UPI alerts recognised in the most recent scan this session. */
+    val lastScanParsedCount: Int = 0,
+    val appLockEnabled: Boolean = false,
+    val hideIncomeEnabled: Boolean = false,
     val resetCompleted: Boolean = false,
     val errorMessage: String? = null,
     val infoMessage: String? = null,
@@ -38,7 +54,10 @@ class SettingsViewModel(
     private val resetLocalData: ResetLocalDataUseCase,
     private val labelRepository: LabelRepository,
     private val importSmsInbox: ImportSmsInboxUseCase,
+    private val transactionRepository: TransactionRepository,
     private val smsScanPreferences: SmsScanPreferences,
+    private val securityPreferences: SecurityPreferences,
+    private val securitySession: SecuritySession,
 ) : ViewModel() {
 
     private val isResetting = MutableStateFlow(false)
@@ -46,6 +65,9 @@ class SettingsViewModel(
     private val resetCompleted = MutableStateFlow(false)
     private val errorMessage = MutableStateFlow<String?>(null)
     private val infoMessage = MutableStateFlow<String?>(null)
+    private val lastScanScannedCount = MutableStateFlow(0)
+    private val lastScanInboxTotal = MutableStateFlow(0)
+    private val lastScanParsedCount = MutableStateFlow(0)
 
     private data class BusyState(
         val resetting: Boolean,
@@ -59,6 +81,14 @@ class SettingsViewModel(
         val lastScanMillis: Long,
         val autoOnOpen: Boolean,
         val listenBackground: Boolean,
+    )
+
+    private data class CountsState(
+        val total: Int,
+        val fromSms: Int,
+        val lastScanScanned: Int,
+        val lastScanInboxTotal: Int,
+        val lastScanParsed: Int,
     )
 
     val uiState: StateFlow<SettingsUiState> = combine(
@@ -79,7 +109,22 @@ class SettingsViewModel(
         ) { resetting, scanning, completed, error, info ->
             BusyState(resetting, scanning, completed, error, info)
         },
-    ) { labels, smsPrefs, busy ->
+        combine(
+            transactionRepository.observeTransactionCount(),
+            transactionRepository.observeTransactionCountBySource(TransactionSource.SMS),
+            lastScanScannedCount,
+            lastScanInboxTotal,
+            lastScanParsedCount,
+        ) { total, fromSms, scanned, inboxTotal, parsed ->
+            CountsState(total, fromSms, scanned, inboxTotal, parsed)
+        },
+        combine(
+            securityPreferences.appLockEnabledFlow,
+            securityPreferences.hideIncomeEnabledFlow,
+        ) { appLock, hideIncome ->
+            appLock to hideIncome
+        },
+    ) { labels, smsPrefs, busy, counts, security ->
         SettingsUiState(
             labels = labels,
             isResetting = busy.resetting,
@@ -87,6 +132,13 @@ class SettingsViewModel(
             lastSmsScanAt = smsPrefs.lastScanMillis.takeIf { it > 0L }?.let(Instant::ofEpochMilli),
             autoSmsScanOnOpen = smsPrefs.autoOnOpen,
             listenSmsInBackground = smsPrefs.listenBackground,
+            totalTransactionCount = counts.total,
+            smsTransactionCount = counts.fromSms,
+            lastScanScannedCount = counts.lastScanScanned,
+            lastScanInboxTotal = counts.lastScanInboxTotal,
+            lastScanParsedCount = counts.lastScanParsed,
+            appLockEnabled = security.first,
+            hideIncomeEnabled = security.second,
             resetCompleted = busy.completed,
             errorMessage = busy.error,
             infoMessage = busy.info,
@@ -105,6 +157,17 @@ class SettingsViewModel(
         smsScanPreferences.setListenInBackgroundEnabled(enabled)
     }
 
+    fun setAppLockEnabled(enabled: Boolean) {
+        securityPreferences.setAppLockEnabled(enabled)
+        if (enabled) securitySession.unlockApp()
+    }
+
+    fun setHideIncomeEnabled(enabled: Boolean) {
+        securityPreferences.setHideIncomeEnabled(enabled)
+        if (!enabled) securitySession.revealIncome()
+        else securitySession.hideIncome()
+    }
+
     /** Manual scan: only messages after the last saved scan date (full inbox if never scanned). */
     fun scanNewSms() {
         runSmsScan(SmsScanMode.INCREMENTAL)
@@ -121,7 +184,15 @@ class SettingsViewModel(
             isScanningSms.value = true
             errorMessage.value = null
             try {
-                val result = importSmsInbox(mode = mode, recordEmptyHistory = true)
+                val result = importSmsInbox(
+                    mode = mode,
+                    recordEmptyHistory = true,
+                    onProgress = { progress ->
+                        lastScanScannedCount.value = progress.scannedCount
+                        lastScanInboxTotal.value = progress.inboxTotal
+                        lastScanParsedCount.value = progress.parsedCount
+                    },
+                )
                 applySmsResult(result, fullRescan = mode == SmsScanMode.FULL)
             } catch (error: Exception) {
                 errorMessage.value = error.message ?: "SMS scan failed"
@@ -136,8 +207,15 @@ class SettingsViewModel(
             "SMS permission was denied. Allow SMS access to scan transaction alerts."
     }
 
+    fun reportSecurityError(message: String) {
+        errorMessage.value = message
+        infoMessage.value = null
+    }
+
     private fun applySmsResult(result: ImportResult, fullRescan: Boolean) {
         val batch = result.batch
+        lastScanScannedCount.value = result.scannedCount
+        lastScanParsedCount.value = batch.totalParsed
         val totals = "Now showing data from ${result.storedTotalCount} transactions."
         if (batch.newCount > 0 || batch.mergedCount > 0) {
             val scope = if (fullRescan) "Full SMS scan" else "SMS scan"
@@ -208,7 +286,10 @@ class SettingsViewModel(
                     resetLocalData = container.resetLocalData,
                     labelRepository = container.labelRepository,
                     importSmsInbox = container.importSmsInbox,
+                    transactionRepository = container.transactionRepository,
                     smsScanPreferences = container.smsScanPreferences,
+                    securityPreferences = container.securityPreferences,
+                    securitySession = container.securitySession,
                 )
             }
         }

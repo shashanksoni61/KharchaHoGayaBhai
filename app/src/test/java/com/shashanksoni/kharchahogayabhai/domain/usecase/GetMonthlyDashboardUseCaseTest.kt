@@ -5,8 +5,10 @@ import com.shashanksoni.kharchahogayabhai.domain.model.DefaultCategories
 import com.shashanksoni.kharchahogayabhai.domain.model.InstantRange
 import com.shashanksoni.kharchahogayabhai.domain.model.Money
 import com.shashanksoni.kharchahogayabhai.domain.model.Transaction
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDateBounds
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDetail
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionFilter
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSummary
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionType
 import com.shashanksoni.kharchahogayabhai.domain.repository.CategoryRepository
@@ -179,15 +181,24 @@ class GetMonthlyDashboardUseCaseTest {
             flowOf(summaries.filter { it.transactionDate in range })
 
         override fun observeTransactions(filter: TransactionFilter): Flow<List<Transaction>> =
-            error("Not needed by the dashboard")
+            flowOf(emptyList())
 
         override fun observeTransactionDetail(transactionId: Long): Flow<TransactionDetail?> =
+            error("Not needed by the dashboard")
+
+        override fun observeDateBounds(): Flow<TransactionDateBounds> =
             error("Not needed by the dashboard")
 
         override fun observeAccountIdentifiers(): Flow<List<String>> =
             error("Not needed by the dashboard")
 
         override suspend fun countTransactions(): Int =
+            error("Not needed by the dashboard")
+
+        override fun observeTransactionCount(): Flow<Int> =
+            error("Not needed by the dashboard")
+
+        override fun observeTransactionCountBySource(source: TransactionSource): Flow<Int> =
             error("Not needed by the dashboard")
 
         override suspend fun setCategory(transactionId: Long, categoryId: Long?) =

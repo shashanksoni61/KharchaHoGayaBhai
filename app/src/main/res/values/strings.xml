@@ -23,11 +23,25 @@
     <string name="dashboard_spent_less_than">Spent %1$d%% less than %2$s (%3$s)</string>
     <string name="dashboard_no_data">No transactions this month yet.</string>
     <string name="dashboard_uncategorised">Uncategorised</string>
+    <string name="dashboard_hero_greeting">Let\'s save your money</string>
+    <string name="dashboard_available">Available</string>
+    <string name="dashboard_spent_this_month">Spent this month</string>
+    <string name="dashboard_insights">Spending</string>
+    <string name="dashboard_spent_in">Spent this %1$s</string>
+    <string name="dashboard_spending_categories">Spending categories</string>
+    <string name="dashboard_operations">Operations</string>
+    <string name="dashboard_money_split">Income vs expenses</string>
+    <string name="dashboard_spent_share">Spent</string>
+    <string name="dashboard_show_income">Show income</string>
+    <string name="dashboard_hide_income">Hide income</string>
 
     <!-- Transaction list -->
     <string name="transactions_search_hint">Search merchant, note or reference</string>
     <string name="transactions_clear_search">Clear search</string>
     <string name="transactions_filter_all">All</string>
+    <string name="transactions_filter_all_months">All months</string>
+    <string name="transactions_expand_month">Expand month</string>
+    <string name="transactions_collapse_month">Collapse month</string>
     <string name="transactions_filter_money_out">Money out</string>
     <string name="transactions_filter_money_in">Money in</string>
     <string name="transactions_empty">No transactions match these filters.</string>
@@ -44,6 +58,9 @@
     <string name="transactions_day_loss">In loss for this day — you spent more than you received.</string>
     <string name="transactions_day_even">Break even — money in and money out matched.</string>
     <string name="transactions_pick_category">Choose category</string>
+    <string name="transactions_promo">Promo</string>
+    <string name="transactions_sort_high_to_low">Largest amount first</string>
+    <string name="transactions_sort_low_to_high">Smallest amount first</string>
 
     <!-- Transaction detail -->
     <string name="detail_title">Transaction</string>
@@ -56,6 +73,7 @@
     <string name="detail_reference_number">Reference number</string>
     <string name="detail_description">Description</string>
     <string name="detail_notes">Notes</string>
+    <string name="detail_promotional">Promotional alert — shown here, not added to money in or money out.</string>
     <string name="detail_sources">Sources</string>
     <string name="detail_source_imported_on">Imported %1$s</string>
     <string name="detail_parse_status">Parse status</string>
@@ -112,13 +130,24 @@
     <string name="settings_import_explanation">Bring in CSV or PDF statements, or open the import history. You will not need this often.</string>
     <string name="settings_open_import">Open import</string>
     <string name="settings_sms_title">SMS transactions</string>
-    <string name="settings_sms_explanation">Bank and UPI alerts from Messages are filtered into your dashboard. Manual scan only reads messages after the last scan date.</string>
+    <string name="settings_sms_explanation">Bank and UPI alerts from Messages are filtered into your dashboard. Rescan reads the entire inbox and waits until every message is checked. Promotional wallet/offer texts stay in the list but do not add to money in or money out.</string>
     <string name="settings_sms_scan_new">Scan new SMS</string>
     <string name="settings_sms_rescan_all">Rescan entire inbox</string>
     <string name="settings_sms_last_scan">Last scan: %1$s</string>
     <string name="settings_sms_never_scanned">Not scanned yet — the next scan will read the inbox from the start.</string>
+    <string name="settings_sms_stats_title">Message data</string>
+    <string name="settings_sms_stats_total">Transactions in system: %1$d</string>
+    <string name="settings_sms_stats_from_sms">From SMS alerts: %1$d</string>
+    <string name="settings_sms_stats_last_scan">Last scan: parsed %1$d of %2$d messages read</string>
+    <string name="settings_sms_stats_progress">Scanning %1$d of %2$d messages · %3$d alerts so far</string>
     <string name="settings_sms_listen_title">Scan when SMS arrives</string>
-    <string name="settings_sms_listen_explanation">Runs in the background when a new message arrives. Only messages after the last scan are processed.</string>
+    <string name="settings_sms_listen_explanation">Runs in the background when a new message arrives. A notification shows this amount and today\'s running total.</string>
+    <string name="notification_channel_name">Transaction alerts</string>
+    <string name="notification_channel_description">New credits and debits from SMS, plus today\'s running total.</string>
+    <string name="notification_title_credit">Money in</string>
+    <string name="notification_title_debit">Money out</string>
+    <string name="notification_credit_body">Credited %1$s  ·  %2$s in today</string>
+    <string name="notification_debit_body">Debited %1$s  ·  %2$s spent today</string>
     <string name="settings_sms_auto_title">Also scan when app opens</string>
     <string name="settings_sms_auto_explanation">Catch up on any alerts missed while the phone was offline. Needs SMS permission.</string>
     <string name="settings_data_title">Data</string>
@@ -138,4 +167,25 @@
     <string name="settings_label_builtin">Built-in</string>
     <string name="settings_label_custom">Custom</string>
     <string name="settings_delete_label">Delete custom flag</string>
+
+    <!-- Security -->
+    <string name="settings_security_title">Privacy &amp; lock</string>
+    <string name="settings_security_explanation">Uses this phone\'s fingerprint, face unlock, or screen PIN / pattern / password. Nothing is stored in the app.</string>
+    <string name="settings_app_lock_title">Lock the app</string>
+    <string name="settings_app_lock_explanation">Ask for fingerprint or your phone password every time you open the app.</string>
+    <string name="settings_hide_income_title">Hide income</string>
+    <string name="settings_hide_income_explanation">Mask income and net on the dashboard. Tap the eye, then authenticate, to reveal it.</string>
+    <string name="security_enable_lock_title">Turn on app lock</string>
+    <string name="security_enable_lock_subtitle">Confirm with fingerprint or your phone password</string>
+    <string name="security_enable_hide_income_title">Hide income amounts</string>
+    <string name="security_enable_hide_income_subtitle">Confirm with fingerprint or your phone password</string>
+    <string name="security_reveal_income_title">Show income</string>
+    <string name="security_reveal_income_subtitle">Unlock with fingerprint or your phone password</string>
+    <string name="security_device_lock_required">Set a screen lock or fingerprint in system settings first.</string>
+    <string name="security_cancel">Cancel</string>
+    <string name="lock_title">App locked</string>
+    <string name="lock_subtitle">Use your fingerprint or phone password to continue.</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="lock_prompt_title">Unlock Kharcha</string>
+    <string name="lock_prompt_subtitle">Fingerprint or phone password</string>
 </resources>

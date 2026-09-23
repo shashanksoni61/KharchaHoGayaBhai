@@ -1,7 +1,6 @@
 package com.shashanksoni.kharchahogayabhai.ui.theme
 
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -100,8 +99,8 @@ private val DarkScheme = darkColorScheme(
 
 @Composable
 fun KharchaTheme(
-    useDarkTheme: Boolean = isSystemInDarkTheme(),
-    useDynamicColor: Boolean = true,
+    useDarkTheme: Boolean = false,
+    useDynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val supportsDynamicColor = useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S

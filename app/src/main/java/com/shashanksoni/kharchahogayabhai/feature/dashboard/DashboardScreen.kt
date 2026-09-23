@@ -9,49 +9,87 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shashanksoni.kharchahogayabhai.R
+import com.shashanksoni.kharchahogayabhai.appContainer
 import com.shashanksoni.kharchahogayabhai.core.common.DateTimeFormatters
 import com.shashanksoni.kharchahogayabhai.core.common.MoneyFormatter
-import com.shashanksoni.kharchahogayabhai.domain.model.CategorySpending
-import com.shashanksoni.kharchahogayabhai.domain.model.Money
-import com.shashanksoni.kharchahogayabhai.domain.model.MonthTotals
 import com.shashanksoni.kharchahogayabhai.domain.model.MonthlyDashboard
-import com.shashanksoni.kharchahogayabhai.ui.component.CategoryAvatar
+import com.shashanksoni.kharchahogayabhai.security.rememberSecurityAuth
+import com.shashanksoni.kharchahogayabhai.ui.component.CategoryDonutChart
 import com.shashanksoni.kharchahogayabhai.ui.component.DailySpendingChart
+import com.shashanksoni.kharchahogayabhai.ui.component.DonutSlice
 import com.shashanksoni.kharchahogayabhai.ui.component.MonthNavigator
 import com.shashanksoni.kharchahogayabhai.ui.component.SectionCard
+import com.shashanksoni.kharchahogayabhai.ui.component.SpendingCategoryGrid
+import com.shashanksoni.kharchahogayabhai.ui.component.TransactionRow
 import com.shashanksoni.kharchahogayabhai.ui.theme.HeadlineAmountStyle
-import com.shashanksoni.kharchahogayabhai.ui.theme.financeColors
-import kotlin.math.abs
-import kotlin.math.roundToInt
+import com.shashanksoni.kharchahogayabhai.ui.theme.chartColorAt
+
+private const val HIDDEN_AMOUNT = "••••••"
 
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel,
     onSeeAllTransactions: () -> Unit,
+    onTransactionClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val container = LocalContext.current.appContainer
+    val incomeRevealed by container.securitySession.incomeRevealedFlow
+        .collectAsStateWithLifecycle()
+    val incomeHidden = !incomeRevealed
+    val auth = rememberSecurityAuth()
+    val revealTitle = stringResource(R.string.security_reveal_income_title)
+    val revealSubtitle = stringResource(R.string.security_reveal_income_subtitle)
+    var authError by remember { mutableStateOf<String?>(null) }
+
     DashboardContent(
         uiState = uiState,
+        incomeHidden = incomeHidden,
+        onToggleIncomeVisibility = {
+            if (incomeRevealed) {
+                container.securitySession.hideIncome()
+            } else {
+                authError = null
+                auth.prompt(
+                    title = revealTitle,
+                    subtitle = revealSubtitle,
+                    onSuccess = { container.securitySession.revealIncome() },
+                    onFailed = { message -> authError = message },
+                )
+            }
+        },
+        authError = authError,
         onPreviousMonth = viewModel::showPreviousMonth,
         onNextMonth = viewModel::showNextMonth,
         onSeeAllTransactions = onSeeAllTransactions,
+        onTransactionClick = onTransactionClick,
+        onSetCategory = viewModel::setCategory,
         modifier = modifier,
         contentPadding = contentPadding,
     )
@@ -60,9 +98,14 @@ fun DashboardScreen(
 @Composable
 private fun DashboardContent(
     uiState: DashboardUiState,
+    incomeHidden: Boolean,
+    onToggleIncomeVisibility: () -> Unit,
+    authError: String?,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onSeeAllTransactions: () -> Unit,
+    onTransactionClick: (Long) -> Unit,
+    onSetCategory: (Long, Long?) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -71,7 +114,7 @@ private fun DashboardContent(
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
             MonthNavigator(
@@ -88,32 +131,84 @@ private fun DashboardContent(
             return@LazyColumn
         }
 
+        item {
+            BalanceCard(
+                dashboard = dashboard,
+                incomeHidden = incomeHidden,
+                onToggleIncomeVisibility = onToggleIncomeVisibility,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
+
+        authError?.let { message ->
+            item {
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
+            }
+        }
+
         if (!dashboard.hasData) {
             item {
                 Text(
                     text = stringResource(R.string.dashboard_no_data),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                 )
             }
             return@LazyColumn
         }
 
         item {
-            MonthTotalsCard(
+            InsightsCard(
                 dashboard = dashboard,
+                incomeHidden = incomeHidden,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
 
-        item {
-            SectionCard(
-                title = stringResource(R.string.dashboard_spending_by_category),
-                modifier = Modifier.padding(horizontal = 16.dp),
-            ) {
-                dashboard.categoryBreakdown.forEach { spending ->
-                    CategorySpendingRow(spending = spending)
+        if (dashboard.categoryBreakdown.isNotEmpty()) {
+            item {
+                SectionCard(
+                    title = stringResource(R.string.dashboard_spending_categories),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                ) {
+                    SpendingCategoryGrid(
+                        items = dashboard.categoryBreakdown.take(4),
+                        uncategorisedLabel = stringResource(R.string.dashboard_uncategorised),
+                    )
+                }
+            }
+        }
+
+        if (dashboard.recentTransactions.isNotEmpty()) {
+            item {
+                SectionCard(
+                    title = stringResource(R.string.dashboard_operations),
+                    trailing = {
+                        TextButton(onClick = onSeeAllTransactions) {
+                            Text(stringResource(R.string.dashboard_see_all))
+                        }
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                ) {
+                    val categoriesById = dashboard.categories.associateBy { it.id }
+                    dashboard.recentTransactions.forEach { transaction ->
+                        TransactionRow(
+                            transaction = transaction,
+                            category = transaction.categoryId?.let(categoriesById::get),
+                            onClick = { onTransactionClick(transaction.id) },
+                            categories = dashboard.categories,
+                            onCategorySelected = { categoryId ->
+                                onSetCategory(transaction.id, categoryId)
+                            },
+                            hideIncome = incomeHidden,
+                        )
+                    }
                 }
             }
         }
@@ -126,34 +221,119 @@ private fun DashboardContent(
                 DailySpendingChart(days = dashboard.dailySpending)
             }
         }
+    }
+}
 
-        item {
-            SectionCard(
-                title = stringResource(R.string.dashboard_transaction_count),
-                modifier = Modifier.padding(horizontal = 16.dp),
+@Composable
+private fun BalanceCard(
+    dashboard: MonthlyDashboard,
+    incomeHidden: Boolean,
+    onToggleIncomeVisibility: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val totals = dashboard.totals
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                CountRow(
-                    label = stringResource(R.string.dashboard_total_transactions),
-                    value = dashboard.totals.transactionCount,
+                Text(
+                    text = stringResource(R.string.dashboard_income),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
                 )
-                CountRow(
-                    label = stringResource(R.string.dashboard_income),
-                    value = dashboard.totals.incomeCount,
+                IconButton(onClick = onToggleIncomeVisibility) {
+                    Icon(
+                        imageVector = if (incomeHidden) {
+                            Icons.Rounded.VisibilityOff
+                        } else {
+                            Icons.Rounded.Visibility
+                        },
+                        contentDescription = stringResource(
+                            if (incomeHidden) {
+                                R.string.dashboard_show_income
+                            } else {
+                                R.string.dashboard_hide_income
+                            },
+                        ),
+                    )
+                }
+            }
+            Text(
+                text = if (incomeHidden) HIDDEN_AMOUNT else MoneyFormatter.format(totals.income),
+                style = HeadlineAmountStyle,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = stringResource(R.string.dashboard_spent_this_month),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                CountRow(
-                    label = stringResource(R.string.dashboard_expenses),
-                    value = dashboard.totals.expenseCount,
+                Text(
+                    text = MoneyFormatter.format(totals.expenses),
+                    style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"),
                 )
             }
         }
+    }
+}
 
-        item {
-            TextButton(
-                onClick = onSeeAllTransactions,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            ) {
-                Text(text = stringResource(R.string.dashboard_see_all))
+@Composable
+private fun InsightsCard(
+    dashboard: MonthlyDashboard,
+    incomeHidden: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val slices = remember(dashboard.categoryBreakdown) {
+        val top = dashboard.categoryBreakdown.take(5)
+        val restShare = dashboard.categoryBreakdown.drop(5).sumOf { it.shareOfExpenses.toDouble() }.toFloat()
+        buildList {
+            top.forEachIndexed { index, spending ->
+                add(
+                    DonutSlice(
+                        label = spending.category?.name.orEmpty(),
+                        share = spending.shareOfExpenses,
+                        color = chartColorAt(index),
+                    ),
+                )
             }
+            if (restShare > 0.01f) {
+                add(DonutSlice(label = "", share = restShare, color = chartColorAt(5)))
+            }
+        }
+    }
+
+    SectionCard(
+        title = stringResource(R.string.dashboard_insights),
+        modifier = modifier,
+    ) {
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            CategoryDonutChart(
+                slices = slices,
+                centerTitle = stringResource(
+                    R.string.dashboard_spent_in,
+                    DateTimeFormatters.monthLabel(dashboard.month),
+                ),
+                centerAmount = MoneyFormatter.format(dashboard.totals.expenses),
+            )
         }
     }
 }
@@ -167,138 +347,5 @@ private fun LoadingPlaceholder() {
         contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator()
-    }
-}
-
-@Composable
-private fun MonthTotalsCard(
-    dashboard: MonthlyDashboard,
-    modifier: Modifier = Modifier,
-) {
-    val totals = dashboard.totals
-    SectionCard(
-        title = DateTimeFormatters.monthLabel(dashboard.month),
-        modifier = modifier,
-    ) {
-        Text(
-            text = MoneyFormatter.format(totals.net.absoluteValue),
-            style = HeadlineAmountStyle,
-            color = if (totals.net.minorUnits < 0) financeColors.expense else financeColors.income,
-        )
-        Text(
-            text = stringResource(R.string.dashboard_net),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            TotalColumn(
-                label = stringResource(R.string.dashboard_income),
-                amount = totals.income,
-                color = financeColors.income,
-                modifier = Modifier.weight(1f),
-            )
-            TotalColumn(
-                label = stringResource(R.string.dashboard_expenses),
-                amount = totals.expenses,
-                color = financeColors.expense,
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        PreviousMonthComparison(dashboard = dashboard)
-    }
-}
-
-@Composable
-private fun TotalColumn(
-    label: String,
-    amount: Money,
-    color: Color,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = MoneyFormatter.format(amount),
-            style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
-            color = color,
-        )
-    }
-}
-
-@Composable
-private fun PreviousMonthComparison(dashboard: MonthlyDashboard) {
-    val previousTotals: MonthTotals = dashboard.previousMonthTotals ?: return
-    val changeRatio = dashboard.expenseChangeRatio ?: return
-    val percentage = (changeRatio * 100).roundToInt()
-    val comparison = if (percentage >= 0) {
-        R.string.dashboard_spent_more_than
-    } else {
-        R.string.dashboard_spent_less_than
-    }
-
-    Text(
-        text = stringResource(
-            comparison,
-            abs(percentage),
-            DateTimeFormatters.shortMonthLabel(dashboard.previousMonth),
-            MoneyFormatter.format(previousTotals.expenses),
-        ),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
-
-@Composable
-private fun CategorySpendingRow(spending: CategorySpending) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            CategoryAvatar(category = spending.category, size = 32)
-            Text(
-                text = spending.category?.name ?: stringResource(R.string.dashboard_uncategorised),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = MoneyFormatter.format(spending.amount),
-                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-            )
-        }
-        LinearProgressIndicator(
-            progress = { spending.shareOfExpenses },
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-private fun CountRow(label: String, value: Int) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value.toString(),
-            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-        )
     }
 }

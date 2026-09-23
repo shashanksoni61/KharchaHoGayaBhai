@@ -66,6 +66,7 @@ class TransactionNormalizer(
             primarySource = parsed.source,
             fingerprint = fingerprint,
             parseStatus = parsed.parseStatus,
+            isPromotional = parsed.isPromotional,
             createdAt = now,
             updatedAt = now,
         )

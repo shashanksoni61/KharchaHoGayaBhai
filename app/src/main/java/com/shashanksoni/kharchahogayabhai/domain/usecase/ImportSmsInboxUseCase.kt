@@ -11,11 +11,13 @@ import com.shashanksoni.kharchahogayabhai.domain.repository.ImportRepository
 import com.shashanksoni.kharchahogayabhai.domain.repository.TransactionRepository
 import com.shashanksoni.kharchahogayabhai.sms.SmsInboxReader
 import com.shashanksoni.kharchahogayabhai.sms.SmsParseInput
+import com.shashanksoni.kharchahogayabhai.sms.SmsScanProgress
 import com.shashanksoni.kharchahogayabhai.sms.SmsScanPreferences
 import com.shashanksoni.kharchahogayabhai.sms.SmsTransactionParser
 import java.time.Clock
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.yield
 
 enum class SmsScanMode {
     /** Only messages newer than the last successful scan cursor. */
@@ -29,8 +31,9 @@ enum class SmsScanMode {
  * Scans the device SMS inbox for bank / UPI alerts and ingests them through the
  * same dedup path as CSV/PDF (UTR / fingerprint / sms:{id} source key).
  *
- * Remembers the newest SMS date considered so the next scan only reads newer
- * messages. Auto-open sync uses [SmsScanMode.INCREMENTAL] and skips noisy empty history.
+ * Walks the inbox in pages so a 20k+ mailbox is fully read instead of stopping
+ * at a hard cap. Remembers the newest SMS considered so the next incremental
+ * scan only reads newer messages.
  */
 class ImportSmsInboxUseCase(
     private val inboxReader: SmsInboxReader,
@@ -47,59 +50,95 @@ class ImportSmsInboxUseCase(
     suspend operator fun invoke(
         mode: SmsScanMode = SmsScanMode.INCREMENTAL,
         recordEmptyHistory: Boolean = true,
+        onProgress: (SmsScanProgress) -> Unit = {},
     ): ImportResult = mutex.withLock {
         if (mode == SmsScanMode.FULL) {
             scanPreferences.clearCursor()
         }
 
-        val cursor = scanPreferences.scanCursor()
-        val messages = try {
-            inboxReader.readInbox(afterExclusive = cursor)
-        } catch (error: SecurityException) {
-            return failed(
-                message = "SMS permission is required to read transaction alerts.",
-                recordHistory = recordEmptyHistory,
-            )
-        } catch (error: Exception) {
-            return failed(
-                message = error.message ?: "Could not read SMS inbox.",
-                recordHistory = recordEmptyHistory,
-            )
-        }
+        val inboxTotal = runCatching { inboxReader.countInbox() }.getOrDefault(0)
+        onProgress(SmsScanProgress(scannedCount = 0, inboxTotal = inboxTotal, parsedCount = 0))
 
-        val scannedCount = messages.size
-        // Newest by provider date, then inbox id — keeps same-timestamp bursts ordered.
-        val newestReadMessage = messages.maxWithOrNull(
-            compareBy({ it.receivedAt }, { it.id }),
-        )
-        if (messages.isEmpty()) {
-            // Caught up — bump cursor to now so we do not keep re-querying forever
-            // when the user opens the app with no new SMS.
-            if (mode == SmsScanMode.INCREMENTAL && cursor != null) {
-                scanPreferences.advanceCursorTo(clock.instant())
+        val startingCursor = scanPreferences.scanCursor()
+        val allOutcomes = mutableListOf<IngestOutcome>()
+        val created = mutableListOf<ParsedTransaction>()
+        var scannedCount = 0
+        var parsedCount = 0
+        var pagesRead = 0
+
+        while (true) {
+            val cursor = scanPreferences.scanCursor()
+            val messages = try {
+                inboxReader.readInbox(
+                    afterExclusive = cursor,
+                    limit = SCAN_PAGE_SIZE,
+                )
+            } catch (error: SecurityException) {
+                return failed(
+                    message = "SMS permission is required to read transaction alerts.",
+                    recordHistory = recordEmptyHistory,
+                )
+            } catch (error: Exception) {
+                return failed(
+                    message = error.message ?: "Could not read SMS inbox.",
+                    recordHistory = recordEmptyHistory,
+                    scannedCount = scannedCount,
+                )
             }
-            return failed(
-                message = if (cursor == null) {
-                    "No SMS messages found on this device."
-                } else {
-                    "No new SMS since the last scan."
-                },
-                recordHistory = recordEmptyHistory,
-                scannedCount = 0,
+
+            if (messages.isEmpty()) {
+                if (pagesRead == 0) {
+                    if (mode == SmsScanMode.INCREMENTAL && startingCursor != null) {
+                        scanPreferences.advanceCursorTo(clock.instant())
+                    }
+                    return failed(
+                        message = if (startingCursor == null) {
+                            "No SMS messages found on this device."
+                        } else {
+                            "No new SMS since the last scan."
+                        },
+                        recordHistory = recordEmptyHistory,
+                        scannedCount = 0,
+                    )
+                }
+                break
+            }
+
+            pagesRead += 1
+            scannedCount += messages.size
+            val newestReadMessage = messages.maxWithOrNull(
+                compareBy({ it.receivedAt }, { it.id }),
             )
+            newestReadMessage?.let(scanPreferences::advanceCursorPast)
+
+            val input = SmsParseInput(messages)
+            val parsed = if (smsParser.canParse(input)) {
+                smsParser.parse(input)
+            } else {
+                emptyList()
+            }
+            if (parsed.isNotEmpty()) {
+                val outcomes = ingestor.ingest(parsed)
+                parsedCount += parsed.size
+                allOutcomes += outcomes
+                if (!recordEmptyHistory) {
+                    parsed.zip(outcomes).forEach { (row, outcome) ->
+                        if (outcome == IngestOutcome.CREATED) created += row
+                    }
+                }
+            }
+
+            onProgress(
+                SmsScanProgress(
+                    scannedCount = scannedCount,
+                    inboxTotal = inboxTotal,
+                    parsedCount = parsedCount,
+                ),
+            )
+            yield()
         }
 
-        val input = SmsParseInput(messages)
-        val parsed = if (smsParser.canParse(input)) {
-            smsParser.parse(input)
-        } else {
-            emptyList()
-        }
-
-        // Always advance past what we inspected, including OTPs we skipped.
-        newestReadMessage?.let(scanPreferences::advanceCursorPast)
-
-        if (parsed.isEmpty()) {
+        if (parsedCount == 0) {
             return failed(
                 message = "No bank or UPI transaction alerts were recognised in the scanned SMS.",
                 recordHistory = recordEmptyHistory,
@@ -107,7 +146,12 @@ class ImportSmsInboxUseCase(
             )
         }
 
-        return finishImport(parsed, scannedCount)
+        return completeImport(
+            parsedCount = parsedCount,
+            outcomes = allOutcomes,
+            created = created,
+            scannedCount = scannedCount,
+        )
     }
 
     /**
@@ -137,11 +181,12 @@ class ImportSmsInboxUseCase(
             }
     }
 
-    private suspend fun finishImport(
-        parsed: List<ParsedTransaction>,
+    private suspend fun completeImport(
+        parsedCount: Int,
+        outcomes: List<IngestOutcome>,
+        created: List<ParsedTransaction>,
         scannedCount: Int,
     ): ImportResult {
-        val outcomes = ingestor.ingest(parsed)
         val newCount = outcomes.count { it == IngestOutcome.CREATED }
         val mergedCount = outcomes.count { it == IngestOutcome.MERGED }
         val duplicateCount = outcomes.count { it == IngestOutcome.DUPLICATE_SKIPPED }
@@ -159,7 +204,7 @@ class ImportSmsInboxUseCase(
             fileName = "SMS inbox",
             source = TransactionSource.SMS,
             importedAt = clock.instant(),
-            totalParsed = parsed.size,
+            totalParsed = parsedCount,
             newCount = newCount,
             mergedCount = mergedCount,
             duplicateCount = duplicateCount,
@@ -181,6 +226,7 @@ class ImportSmsInboxUseCase(
             outcomes = outcomes,
             scannedCount = scannedCount,
             storedTotalCount = transactionRepository.countTransactions(),
+            createdTransactions = created,
         )
     }
 
@@ -217,5 +263,9 @@ class ImportSmsInboxUseCase(
             scannedCount = scannedCount,
             storedTotalCount = storedTotal,
         )
+    }
+
+    companion object {
+        const val SCAN_PAGE_SIZE = 1_000
     }
 }

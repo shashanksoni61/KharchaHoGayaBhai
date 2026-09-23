@@ -114,6 +114,24 @@ class SmsTransactionParserTest {
     }
 
     @Test
+    fun marksWalletOfferAsPromotionalAndKeepsItVisible() {
+        val body = "Lenskart is eager to serve you, Rs. 1000 credited in your wallet till 8 Dec. " +
+            "Shop now to unlock your reward."
+        val parsed = parser.parse(single(body, address = "LM-LENSKT")).single()
+
+        assertEquals(100_000L, parsed.amount.minorUnits)
+        assertEquals(TransactionType.CREDIT, parsed.type)
+        assertTrue(parsed.isPromotional)
+    }
+
+    @Test
+    fun doesNotTreatBankAccountCreditAsPromotional() {
+        val body = "Your a/c XX9876 is credited with INR 5,000.00 on 15-09-2026 by UPI Ref No. 451236987410"
+        val parsed = parser.parse(single(body)).single()
+        assertTrue(!parsed.isPromotional)
+    }
+
+    @Test
     fun skipsNonTransactionSms() {
         val body = "Your OTP for login is 482910. Do not share with anyone."
         val input = SmsParseInput(listOf(message(body)))
@@ -130,8 +148,8 @@ class SmsTransactionParserTest {
         assertEquals("432109876543", first.referenceNumber)
     }
 
-    private fun single(body: String, id: Long = 101L) =
-        SmsParseInput(listOf(message(body, id)))
+    private fun single(body: String, id: Long = 101L, address: String = "HDFCBK") =
+        SmsParseInput(listOf(message(body, id, address)))
 
     private fun message(
         body: String,

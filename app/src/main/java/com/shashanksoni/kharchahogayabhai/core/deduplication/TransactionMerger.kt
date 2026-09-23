@@ -3,6 +3,7 @@ package com.shashanksoni.kharchahogayabhai.core.deduplication
 import com.shashanksoni.kharchahogayabhai.domain.model.ParseStatus
 import com.shashanksoni.kharchahogayabhai.domain.model.PaymentMethod
 import com.shashanksoni.kharchahogayabhai.domain.model.Transaction
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalTime
@@ -38,6 +39,7 @@ class TransactionMerger(
         paymentMethod = preferKnownPaymentMethod(existing.paymentMethod, incoming.paymentMethod),
         categoryId = existing.categoryId ?: incoming.categoryId,
         parseStatus = preferCompleteParseStatus(existing.parseStatus, incoming.parseStatus),
+        isPromotional = mergePromotional(existing, incoming),
         notes = existing.notes ?: incoming.notes,
         updatedAt = clock.instant(),
     )
@@ -64,6 +66,17 @@ class TransactionMerger(
         existing: PaymentMethod,
         incoming: PaymentMethod,
     ): PaymentMethod = if (existing == PaymentMethod.UNKNOWN) incoming else existing
+
+    /**
+     * A full SMS rescan must be able to flip an older row to promotional.
+     * A later CSV/PDF of the same payment means real money moved, so it counts.
+     */
+    private fun mergePromotional(existing: Transaction, incoming: Transaction): Boolean =
+        if (incoming.primarySource == TransactionSource.SMS) {
+            incoming.isPromotional
+        } else {
+            existing.isPromotional && incoming.isPromotional
+        }
 
     /** A second source can complete a partially parsed transaction. */
     private fun preferCompleteParseStatus(

@@ -73,6 +73,8 @@ data class TransactionEntity(
     val fingerprint: String,
     @ColumnInfo(name = "parse_status")
     val parseStatus: ParseStatus,
+    @ColumnInfo(name = "is_promotional", defaultValue = "0")
+    val isPromotional: Boolean = false,
     val notes: String?,
     @ColumnInfo(name = "created_at")
     val createdAtMillis: Long,

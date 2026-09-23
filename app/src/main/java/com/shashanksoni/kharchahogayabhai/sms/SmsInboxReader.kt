@@ -18,9 +18,27 @@ class SmsInboxReader(
      * (date, id) cursor are returned so same-timestamp bursts from one sender
      * are not skipped.
      */
+    /** How many inbox rows the provider reports, used for scan progress. */
+    fun countInbox(): Int {
+        appContext.contentResolver.query(
+            Telephony.Sms.Inbox.CONTENT_URI,
+            arrayOf(Telephony.Sms._ID),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            return cursor.count
+        }
+        return 0
+    }
+
+    /**
+     * One page of inbox SMS, oldest first. Callers page with [afterExclusive]
+     * until a page comes back empty — there is no whole-inbox cap.
+     */
     fun readInbox(
         afterExclusive: SmsScanCursor? = null,
-        limit: Int = DEFAULT_LIMIT,
+        limit: Int = DEFAULT_PAGE_SIZE,
     ): List<SmsMessage> {
         val uri: Uri = Telephony.Sms.Inbox.CONTENT_URI
         val projection = arrayOf(
@@ -73,6 +91,6 @@ class SmsInboxReader(
     }
 
     companion object {
-        const val DEFAULT_LIMIT = 5_000
+        const val DEFAULT_PAGE_SIZE = 1_000
     }
 }

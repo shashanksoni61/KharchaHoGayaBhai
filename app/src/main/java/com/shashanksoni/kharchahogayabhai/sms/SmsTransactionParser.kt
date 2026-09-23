@@ -47,7 +47,12 @@ class SmsTransactionParser(
         val reference = extractReference(body)
         val account = ACCOUNT_MASK.find(body)?.groupValues?.getOrNull(1)
         val paymentMethod = detectPaymentMethod(body)
-        val merchant = extractMerchant(body)
+        val promotional = isPromotionalAlert(body, reference, account)
+        val merchant = if (promotional) {
+            extractMerchant(body) ?: message.address?.let(::cleanMerchant)
+        } else {
+            extractMerchant(body)
+        }
         val transactionDate = extractBodyDateTime(body) ?: message.receivedAt
 
         if (amount == null || type == null) {
@@ -65,6 +70,7 @@ class SmsTransactionParser(
                 originLabel = message.address,
                 parseStatus = ParseStatus.FAILED,
                 rawPayload = body,
+                isPromotional = promotional,
             )
         }
 
@@ -87,7 +93,32 @@ class SmsTransactionParser(
             originLabel = message.address,
             parseStatus = status,
             rawPayload = body,
+            isPromotional = promotional,
         )
+    }
+
+    /**
+     * Offers, app-wallet credits with an expiry, and similar marketing SMS
+     * often say "Rs X credited" without a bank account or UTR. Keep them
+     * visible; do not treat them as money that moved.
+     */
+    private fun isPromotionalAlert(
+        body: String,
+        reference: String?,
+        account: String?,
+    ): Boolean {
+        if (hasBankMoneyMovementEvidence(body, reference, account)) return false
+        return PROMOTIONAL_HINT.containsMatchIn(body)
+    }
+
+    private fun hasBankMoneyMovementEvidence(
+        body: String,
+        reference: String?,
+        account: String?,
+    ): Boolean {
+        if (!account.isNullOrBlank()) return true
+        if (!reference.isNullOrBlank()) return true
+        return BANK_MOVEMENT_HINT.containsMatchIn(body)
     }
 
     private fun looksLikeTransactionAlert(body: String): Boolean {
@@ -210,6 +241,18 @@ class SmsTransactionParser(
         /** Prefer body stamp over SMS receive time when banks print one. */
         private val BODY_DATE_TIME = Regex(
             """\b(\d{1,2}[-/]\d{1,2}[-/]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\b""",
+        )
+        private val BANK_MOVEMENT_HINT = Regex(
+            """(?:debited\s+from|credited\s+to\s+your|withdrawn\s+from|avl(?:ailable)?\s+bal|not you\?|a/?c\s*(?:no\.?)?)""",
+            RegexOption.IGNORE_CASE,
+        )
+        private val PROMOTIONAL_HINT = Regex(
+            """(?:credited\s+(?:in|to)\s+your\s+wallet|wallet.{0,40}(?:till|until|valid|expir)|""" +
+                """(?:till|until|valid(?:\s+(?:till|until|upto|up to))?|expir(?:es|y|ing)?)\b.{0,40}wallet|""" +
+                """eager to serve|\b(?:voucher|coupon|promo(?:tion|tional)?|offer code|cashback)\b|""" +
+                """\bwill be credited\b|\b(?:win|unlock|grab|flat)\s+(?:rs\.?|inr|₹)|""" +
+                """up\s*to\s+(?:rs\.?|inr|₹))""",
+            RegexOption.IGNORE_CASE,
         )
         private val MERCHANT_PATTERNS = listOf(
             Regex("""(?:to|at|towards)\s+VPA\s+([^\s,]+@[^\s,]+)""", RegexOption.IGNORE_CASE),

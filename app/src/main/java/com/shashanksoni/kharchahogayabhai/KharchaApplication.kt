@@ -19,6 +19,7 @@ class KharchaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        container.transactionAlertNotifier.ensureChannel()
         applicationScope.launch { container.prepareLocalData() }
     }
 }

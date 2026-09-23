@@ -32,11 +32,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shashanksoni.kharchahogayabhai.R
+import com.shashanksoni.kharchahogayabhai.appContainer
 import com.shashanksoni.kharchahogayabhai.core.common.DateTimeFormatters
 import com.shashanksoni.kharchahogayabhai.core.common.MoneyFormatter
 import com.shashanksoni.kharchahogayabhai.core.normalization.AccountIdentifierNormalizer
@@ -61,6 +63,10 @@ fun TransactionDetailScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val container = LocalContext.current.appContainer
+    val incomeRevealed by container.securitySession.incomeRevealedFlow
+        .collectAsStateWithLifecycle()
+    val hideIncome = !incomeRevealed
     var isChoosingCategory by remember { mutableStateOf(false) }
     var isCreatingLabel by remember { mutableStateOf(false) }
 
@@ -85,6 +91,7 @@ fun TransactionDetailScreen(
                 onToggleLabel = viewModel::toggleLabel,
                 onAddCustomLabelClick = { isCreatingLabel = true },
                 labelError = uiState.labelError,
+                hideIncome = hideIncome,
                 modifier = modifier,
                 contentPadding = contentPadding,
             )
@@ -124,6 +131,7 @@ private fun TransactionDetailContent(
     onToggleLabel: (labelId: Long, currentlyAttached: Boolean) -> Unit,
     onAddCustomLabelClick: () -> Unit,
     labelError: String?,
+    hideIncome: Boolean,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -146,7 +154,11 @@ private fun TransactionDetailContent(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = MoneyFormatter.formatSigned(transaction.amount, transaction.type),
+                text = if (hideIncome && !transaction.isDebit) {
+                    "••••••"
+                } else {
+                    MoneyFormatter.formatSigned(transaction.amount, transaction.type)
+                },
                 style = HeadlineAmountStyle,
                 color = if (transaction.isDebit) financeColors.expense else financeColors.income,
             )
@@ -157,6 +169,13 @@ private fun TransactionDetailContent(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (transaction.isPromotional) {
+                Text(
+                    text = stringResource(R.string.detail_promotional),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
         }
 
         SectionCard(

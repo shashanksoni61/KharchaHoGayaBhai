@@ -19,14 +19,14 @@ internal val ErrorLight = Color(0xFFBA1A1A)
 internal val OnErrorLight = Color(0xFFFFFFFF)
 internal val ErrorContainerLight = Color(0xFFFFDAD6)
 internal val OnErrorContainerLight = Color(0xFF410002)
-internal val BackgroundLight = Color(0xFFFBFDF8)
-internal val OnBackgroundLight = Color(0xFF191C1A)
-internal val SurfaceVariantLight = Color(0xFFDCE5DC)
-internal val OnSurfaceVariantLight = Color(0xFF414942)
-internal val OutlineLight = Color(0xFF717972)
-internal val OutlineVariantLight = Color(0xFFC0C9C0)
+internal val BackgroundLight = Color(0xFFF4F4F6)
+internal val OnBackgroundLight = Color(0xFF111111)
+internal val SurfaceVariantLight = Color(0xFFE8E8EC)
+internal val OnSurfaceVariantLight = Color(0xFF6B6B73)
+internal val OutlineLight = Color(0xFFB8B8C0)
+internal val OutlineVariantLight = Color(0xFFE2E2E8)
 internal val SurfaceContainerLowestLight = Color(0xFFFFFFFF)
-internal val SurfaceContainerLowLight = Color(0xFFF5F7F2)
+internal val SurfaceContainerLowLight = Color(0xFFFFFFFF)
 internal val SurfaceContainerLight = Color(0xFFEFF2EC)
 internal val SurfaceContainerHighLight = Color(0xFFE9ECE6)
 internal val SurfaceContainerHighestLight = Color(0xFFE3E7E0)
@@ -64,5 +64,17 @@ internal val SurfaceBrightDark = Color(0xFF363A35)
 // Money direction is semantic, so these stay fixed even under dynamic colour.
 internal val IncomeLight = Color(0xFF1B7A45)
 internal val IncomeDark = Color(0xFF7ADFA5)
-internal val ExpenseLight = Color(0xFFB3261E)
+internal val ExpenseLight = Color(0xFF111111)
 internal val ExpenseDark = Color(0xFFFFB4AB)
+
+/** Soft multi-colour slices for the donut / category grid. */
+val ChartPalette = listOf(
+    Color(0xFF4C8DFF),
+    Color(0xFF3DCF7A),
+    Color(0xFFFFC44D),
+    Color(0xFF8B6CFF),
+    Color(0xFFFF6B8A),
+    Color(0xFF38C6D9),
+)
+
+fun chartColorAt(index: Int): Color = ChartPalette[index.mod(ChartPalette.size)]

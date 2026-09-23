@@ -4,13 +4,16 @@ import com.shashanksoni.kharchahogayabhai.core.database.dao.TransactionDao
 import com.shashanksoni.kharchahogayabhai.data.local.mapper.toDomain
 import com.shashanksoni.kharchahogayabhai.domain.model.InstantRange
 import com.shashanksoni.kharchahogayabhai.domain.model.Transaction
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDateBounds
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDetail
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionFilter
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSummary
 import com.shashanksoni.kharchahogayabhai.domain.repository.TransactionRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.Clock
+import java.time.Instant
 
 class RoomTransactionRepository(
     private val transactionDao: TransactionDao,
@@ -42,10 +45,24 @@ class RoomTransactionRepository(
             endMillisExclusive = range.endExclusive.toEpochMilli(),
         ).map { projections -> projections.map { it.toDomain() } }
 
+    override fun observeDateBounds(): Flow<TransactionDateBounds> =
+        transactionDao.observeDateBounds().map { bounds ->
+            TransactionDateBounds(
+                earliest = bounds.minDate?.let(Instant::ofEpochMilli),
+                latest = bounds.maxDate?.let(Instant::ofEpochMilli),
+            )
+        }
+
     override fun observeAccountIdentifiers(): Flow<List<String>> =
         transactionDao.observeAccountIdentifiers()
 
     override suspend fun countTransactions(): Int = transactionDao.countTransactions()
+
+    override fun observeTransactionCount(): Flow<Int> =
+        transactionDao.observeTransactionCount()
+
+    override fun observeTransactionCountBySource(source: TransactionSource): Flow<Int> =
+        transactionDao.observeTransactionCountBySource(source.name)
 
     override suspend fun setCategory(transactionId: Long, categoryId: Long?) {
         transactionDao.updateCategory(

@@ -7,6 +7,8 @@ import com.shashanksoni.kharchahogayabhai.domain.model.InstantRange
 import com.shashanksoni.kharchahogayabhai.domain.model.Money
 import com.shashanksoni.kharchahogayabhai.domain.model.MonthTotals
 import com.shashanksoni.kharchahogayabhai.domain.model.MonthlyDashboard
+import com.shashanksoni.kharchahogayabhai.domain.model.Transaction
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionFilter
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSummary
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionType
 import com.shashanksoni.kharchahogayabhai.domain.repository.CategoryRepository
@@ -39,9 +41,12 @@ class GetMonthlyDashboardUseCase(
 
         return combine(
             transactionRepository.observeSummaries(range),
+            transactionRepository.observeTransactions(
+                TransactionFilter(dateRange = InstantRange.ofMonth(month, zone)),
+            ),
             categoryRepository.observeCategories(),
-        ) { summaries, categories ->
-            buildDashboard(month, previousMonth, summaries, categories)
+        ) { summaries, monthTransactions, categories ->
+            buildDashboard(month, previousMonth, summaries, monthTransactions, categories)
         }
     }
 
@@ -49,6 +54,7 @@ class GetMonthlyDashboardUseCase(
         month: YearMonth,
         previousMonth: YearMonth,
         summaries: List<TransactionSummary>,
+        monthTransactions: List<Transaction>,
         categories: List<Category>,
     ): MonthlyDashboard {
         val byMonth = summaries.groupBy { YearMonth.from(it.transactionDate.atZone(zone)) }
@@ -77,6 +83,8 @@ class GetMonthlyDashboardUseCase(
                 month = month,
                 currencyCode = currencyCode,
             ),
+            recentTransactions = monthTransactions.take(RECENT_TRANSACTION_LIMIT),
+            categories = categories,
         )
     }
 
@@ -147,5 +155,9 @@ class GetMonthlyDashboardUseCase(
             val date = month.atDay(dayOfMonth)
             DailySpending(date = date, amount = spentPerDay[date] ?: Money.zero(currencyCode))
         }
+    }
+
+    private companion object {
+        const val RECENT_TRANSACTION_LIMIT = 8
     }
 }

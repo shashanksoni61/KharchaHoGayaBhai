@@ -2,6 +2,7 @@ package com.shashanksoni.kharchahogayabhai.feature.settings
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shashanksoni.kharchahogayabhai.R
 import com.shashanksoni.kharchahogayabhai.core.common.DateTimeFormatters
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionLabel
+import com.shashanksoni.kharchahogayabhai.security.rememberSecurityAuth
 import com.shashanksoni.kharchahogayabhai.ui.component.SectionCard
 import com.shashanksoni.kharchahogayabhai.ui.util.CategoryVisuals
 import java.time.ZoneId
@@ -63,14 +65,28 @@ fun SettingsScreen(
     var showResetDialog by remember { mutableStateOf(false) }
     var showCreateLabelDialog by remember { mutableStateOf(false) }
     var pendingAction by remember { mutableStateOf<SmsPermissionAction?>(null) }
+    val auth = rememberSecurityAuth()
+    val lockPromptTitle = stringResource(R.string.security_enable_lock_title)
+    val lockPromptSubtitle = stringResource(R.string.security_enable_lock_subtitle)
+    val hidePromptTitle = stringResource(R.string.security_enable_hide_income_title)
+    val hidePromptSubtitle = stringResource(R.string.security_enable_hide_income_subtitle)
 
     val requestSmsPermissions = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
-    ) { grants ->
+    ) { _ ->
         val action = pendingAction
         pendingAction = null
-        val allowed = grants[Manifest.permission.READ_SMS] == true
-        if (allowed && action != null) {
+        val readAllowed = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_SMS,
+        ) == PackageManager.PERMISSION_GRANTED
+        val receiveAllowed = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECEIVE_SMS,
+        ) == PackageManager.PERMISSION_GRANTED
+        val smsReady = readAllowed &&
+            (action != SmsPermissionAction.EnableBackground || receiveAllowed)
+        if (smsReady && action != null) {
             when (action) {
                 SmsPermissionAction.ManualScan -> viewModel.scanNewSms()
                 SmsPermissionAction.FullRescan -> viewModel.rescanAllSms()
@@ -94,19 +110,36 @@ fun SettingsScreen(
             context,
             Manifest.permission.RECEIVE_SMS,
         ) == PackageManager.PERMISSION_GRANTED
-        if (readGranted && (action != SmsPermissionAction.EnableBackground || receiveGranted)) {
+        val notifyGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+        val smsReady = readGranted &&
+            (action != SmsPermissionAction.EnableBackground || receiveGranted)
+        if (smsReady) {
             when (action) {
                 SmsPermissionAction.ManualScan -> viewModel.scanNewSms()
                 SmsPermissionAction.FullRescan -> viewModel.rescanAllSms()
                 SmsPermissionAction.EnableBackground ->
                     viewModel.setListenSmsInBackground(true)
             }
+            if (action == SmsPermissionAction.EnableBackground && !notifyGranted) {
+                requestSmsPermissions.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+            }
             return
         }
         pendingAction = action
-        requestSmsPermissions.launch(
-            arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS),
-        )
+        val toRequest = buildList {
+            add(Manifest.permission.READ_SMS)
+            add(Manifest.permission.RECEIVE_SMS)
+            if (action == SmsPermissionAction.EnableBackground &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+            ) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        requestSmsPermissions.launch(toRequest.toTypedArray())
     }
 
     LazyColumn(
@@ -114,6 +147,49 @@ fun SettingsScreen(
         contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item {
+            SectionCard(
+                title = stringResource(R.string.settings_security_title),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_security_explanation),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SettingSwitchRow(
+                    title = stringResource(R.string.settings_app_lock_title),
+                    explanation = stringResource(R.string.settings_app_lock_explanation),
+                    checked = uiState.appLockEnabled,
+                    onCheckedChange = { enabled ->
+                        auth.prompt(
+                            title = lockPromptTitle,
+                            subtitle = lockPromptSubtitle,
+                            onSuccess = { viewModel.setAppLockEnabled(enabled) },
+                            onFailed = { message ->
+                                if (message != null) viewModel.reportSecurityError(message)
+                            },
+                        )
+                    },
+                )
+                SettingSwitchRow(
+                    title = stringResource(R.string.settings_hide_income_title),
+                    explanation = stringResource(R.string.settings_hide_income_explanation),
+                    checked = uiState.hideIncomeEnabled,
+                    onCheckedChange = { enabled ->
+                        auth.prompt(
+                            title = hidePromptTitle,
+                            subtitle = hidePromptSubtitle,
+                            onSuccess = { viewModel.setHideIncomeEnabled(enabled) },
+                            onFailed = { message ->
+                                if (message != null) viewModel.reportSecurityError(message)
+                            },
+                        )
+                    },
+                )
+            }
+        }
+
         item {
             SectionCard(
                 title = stringResource(R.string.settings_sms_title),
@@ -133,6 +209,14 @@ fun SettingsScreen(
                     } ?: stringResource(R.string.settings_sms_never_scanned),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SmsStatsBlock(
+                    totalTransactions = uiState.totalTransactionCount,
+                    smsTransactions = uiState.smsTransactionCount,
+                    lastScanScanned = uiState.lastScanScannedCount,
+                    lastScanInboxTotal = uiState.lastScanInboxTotal,
+                    lastScanParsed = uiState.lastScanParsedCount,
+                    isScanning = uiState.isScanningSms,
                 )
                 Button(
                     onClick = { ensureSmsPermission(SmsPermissionAction.ManualScan) },
@@ -303,6 +387,60 @@ private enum class SmsPermissionAction {
     ManualScan,
     FullRescan,
     EnableBackground,
+}
+
+@Composable
+private fun SmsStatsBlock(
+    totalTransactions: Int,
+    smsTransactions: Int,
+    lastScanScanned: Int,
+    lastScanInboxTotal: Int,
+    lastScanParsed: Int,
+    isScanning: Boolean,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.settings_sms_stats_title),
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Text(
+            text = stringResource(R.string.settings_sms_stats_total, totalTransactions),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = stringResource(R.string.settings_sms_stats_from_sms, smsTransactions),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (isScanning) {
+            val inboxTotal = lastScanInboxTotal.coerceAtLeast(lastScanScanned)
+            Text(
+                text = stringResource(
+                    R.string.settings_sms_stats_progress,
+                    lastScanScanned,
+                    inboxTotal,
+                    lastScanParsed,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else if (lastScanScanned > 0) {
+            Text(
+                text = stringResource(
+                    R.string.settings_sms_stats_last_scan,
+                    lastScanParsed,
+                    lastScanScanned,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @Composable

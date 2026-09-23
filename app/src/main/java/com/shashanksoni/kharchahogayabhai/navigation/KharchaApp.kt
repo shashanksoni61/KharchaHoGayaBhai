@@ -14,6 +14,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -28,6 +29,7 @@ import com.shashanksoni.kharchahogayabhai.R
 import com.shashanksoni.kharchahogayabhai.di.AppContainer
 import com.shashanksoni.kharchahogayabhai.feature.dashboard.DashboardScreen
 import com.shashanksoni.kharchahogayabhai.feature.dashboard.DashboardViewModel
+import com.shashanksoni.kharchahogayabhai.feature.lock.AppLockScreen
 import com.shashanksoni.kharchahogayabhai.feature.importfile.ImportScreen
 import com.shashanksoni.kharchahogayabhai.feature.importfile.ImportViewModel
 import com.shashanksoni.kharchahogayabhai.feature.settings.SettingsScreen
@@ -40,6 +42,15 @@ import com.shashanksoni.kharchahogayabhai.feature.transactions.list.TransactionL
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KharchaApp(container: AppContainer) {
+    val appLockEnabled by container.securityPreferences.appLockEnabledFlow
+        .collectAsStateWithLifecycle()
+    val appUnlocked by container.securitySession.appUnlockedFlow
+        .collectAsStateWithLifecycle()
+    if (appLockEnabled && !appUnlocked) {
+        AppLockScreen(onUnlocked = container.securitySession::unlockApp)
+        return
+    }
+
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = currentBackStackEntry?.destination
@@ -109,6 +120,11 @@ private fun KharchaNavHost(
                 viewModel = viewModel(factory = DashboardViewModel.factory(container)),
                 onSeeAllTransactions = {
                     navController.navigateToTopLevel(KharchaDestination.Transactions)
+                },
+                onTransactionClick = { transactionId ->
+                    navController.navigate(
+                        KharchaDestination.TransactionDetail.routeTo(transactionId),
+                    )
                 },
                 contentPadding = contentPadding,
             )

@@ -45,4 +45,6 @@ data class ImportResult(
     val scannedCount: Int = 0,
     /** Total transactions the app now holds data from, after this import. */
     val storedTotalCount: Int = 0,
+    /** Newly created rows from this run — used for SMS notifications. */
+    val createdTransactions: List<ParsedTransaction> = emptyList(),
 )

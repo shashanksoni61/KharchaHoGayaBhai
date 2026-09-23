@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -40,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shashanksoni.kharchahogayabhai.R
+import com.shashanksoni.kharchahogayabhai.core.common.DateTimeFormatters
 import com.shashanksoni.kharchahogayabhai.core.common.MoneyFormatter
 import com.shashanksoni.kharchahogayabhai.domain.model.Money
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
@@ -47,6 +50,7 @@ import com.shashanksoni.kharchahogayabhai.domain.model.TransactionType
 import com.shashanksoni.kharchahogayabhai.ui.component.TransactionRow
 import com.shashanksoni.kharchahogayabhai.ui.theme.financeColors
 import com.shashanksoni.kharchahogayabhai.ui.util.labelRes
+import java.time.YearMonth
 
 @Composable
 fun TransactionListScreen(
@@ -70,6 +74,11 @@ fun TransactionListScreen(
                 SearchField(
                     query = uiState.searchQuery,
                     onQueryChange = viewModel::search,
+                )
+                MonthFilterChips(
+                    availableMonths = uiState.availableMonths,
+                    selectedMonth = uiState.selectedMonth,
+                    onMonthClick = viewModel::selectMonth,
                 )
                 TypeFilterChips(
                     selectedType = uiState.selectedType,
@@ -101,30 +110,45 @@ fun TransactionListScreen(
             }
         }
 
-        uiState.dayGroups.forEach { dayGroup ->
-            val collapsed = uiState.isCollapsed(dayGroup.date)
-            item(key = "header-${dayGroup.date}") {
-                DayGroupHeader(
-                    dayGroup = dayGroup,
-                    collapsed = collapsed,
-                    onToggleCollapse = { viewModel.toggleDayCollapsed(dayGroup.date) },
-                    onInfoClick = { dayInfoDialog = dayGroup },
+        uiState.monthGroups.forEach { monthGroup ->
+            val monthCollapsed = uiState.isMonthCollapsed(monthGroup.month)
+            item(key = "month-${monthGroup.month}") {
+                MonthGroupHeader(
+                    monthGroup = monthGroup,
+                    collapsed = monthCollapsed,
+                    onToggleCollapse = { viewModel.toggleMonthCollapsed(monthGroup.month) },
                 )
             }
-            if (!collapsed) {
-                items(items = dayGroup.entries, key = { it.transaction.id }) { entry ->
-                    TransactionRow(
-                        transaction = entry.transaction,
-                        category = entry.category,
-                        onClick = { onTransactionClick(entry.transaction.id) },
-                        categories = uiState.categories,
-                        onCategorySelected = { categoryId ->
-                            viewModel.setCategory(entry.transaction.id, categoryId)
-                        },
-                    )
-                }
-                item(key = "divider-${dayGroup.date}") {
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+            if (!monthCollapsed) {
+                monthGroup.dayGroups.forEach { dayGroup ->
+                    val collapsed = uiState.isCollapsed(dayGroup.date)
+                    item(key = "header-${dayGroup.date}") {
+                        DayGroupHeader(
+                            dayGroup = dayGroup,
+                            collapsed = collapsed,
+                            sort = uiState.sortOf(dayGroup.date),
+                            onToggleCollapse = { viewModel.toggleDayCollapsed(dayGroup.date) },
+                            onSortHighToLow = { viewModel.sortDayHighToLow(dayGroup.date) },
+                            onSortLowToHigh = { viewModel.sortDayLowToHigh(dayGroup.date) },
+                            onInfoClick = { dayInfoDialog = dayGroup },
+                        )
+                    }
+                    if (!collapsed) {
+                        items(items = dayGroup.entries, key = { it.transaction.id }) { entry ->
+                            TransactionRow(
+                                transaction = entry.transaction,
+                                category = entry.category,
+                                onClick = { onTransactionClick(entry.transaction.id) },
+                                categories = uiState.categories,
+                                onCategorySelected = { categoryId ->
+                                    viewModel.setCategory(entry.transaction.id, categoryId)
+                                },
+                            )
+                        }
+                        item(key = "divider-${dayGroup.date}") {
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        }
+                    }
                 }
             }
         }
@@ -139,20 +163,71 @@ fun TransactionListScreen(
 }
 
 @Composable
-private fun DayGroupHeader(
-    dayGroup: TransactionDayGroup,
+private fun MonthGroupHeader(
+    monthGroup: TransactionMonthGroup,
     collapsed: Boolean,
     onToggleCollapse: () -> Unit,
-    onInfoClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onToggleCollapse)
-            .padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
+            .padding(start = 8.dp, end = 12.dp, top = 16.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            imageVector = if (collapsed) Icons.Rounded.ExpandMore else Icons.Rounded.ExpandLess,
+            contentDescription = stringResource(
+                if (collapsed) {
+                    R.string.transactions_expand_month
+                } else {
+                    R.string.transactions_collapse_month
+                },
+            ),
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(26.dp),
+        )
+        Text(
+            text = monthGroup.header,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "+${MoneyFormatter.formatCompact(monthGroup.creditTotal)}",
+            style = MaterialTheme.typography.labelMedium,
+            color = financeColors.income,
+        )
+        Text(
+            text = "\u2212${MoneyFormatter.formatCompact(monthGroup.debitTotal)}",
+            style = MaterialTheme.typography.labelMedium,
+            color = financeColors.expense,
+        )
+    }
+}
+
+@Composable
+private fun DayGroupHeader(
+    dayGroup: TransactionDayGroup,
+    collapsed: Boolean,
+    sort: DayAmountSort,
+    onToggleCollapse: () -> Unit,
+    onSortHighToLow: () -> Unit,
+    onSortLowToHigh: () -> Unit,
+    onInfoClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val active = MaterialTheme.colorScheme.primary
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggleCollapse)
+            .padding(start = 20.dp, end = 8.dp, top = 10.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Icon(
             imageVector = if (collapsed) Icons.Rounded.ExpandMore else Icons.Rounded.ExpandLess,
@@ -172,6 +247,28 @@ private fun DayGroupHeader(
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.weight(1f),
         )
+        IconButton(
+            onClick = onSortHighToLow,
+            modifier = Modifier.size(28.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.ArrowDownward,
+                contentDescription = stringResource(R.string.transactions_sort_high_to_low),
+                tint = if (sort == DayAmountSort.AMOUNT_HIGH_TO_LOW) active else muted,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        IconButton(
+            onClick = onSortLowToHigh,
+            modifier = Modifier.size(28.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.ArrowUpward,
+                contentDescription = stringResource(R.string.transactions_sort_low_to_high),
+                tint = if (sort == DayAmountSort.AMOUNT_LOW_TO_HIGH) active else muted,
+                modifier = Modifier.size(16.dp),
+            )
+        }
         Text(
             text = "+${MoneyFormatter.formatCompact(dayGroup.creditTotal)}",
             style = MaterialTheme.typography.labelMedium,
@@ -314,6 +411,31 @@ private fun SearchField(
         },
         singleLine = true,
     )
+}
+
+@Composable
+private fun MonthFilterChips(
+    availableMonths: List<YearMonth>,
+    selectedMonth: YearMonth?,
+    onMonthClick: (YearMonth?) -> Unit,
+) {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FilterChip(
+            selected = selectedMonth == null,
+            onClick = { onMonthClick(null) },
+            label = { Text(stringResource(R.string.transactions_filter_all_months)) },
+        )
+        availableMonths.forEach { month ->
+            FilterChip(
+                selected = selectedMonth == month,
+                onClick = { onMonthClick(month) },
+                label = { Text(DateTimeFormatters.shortMonthLabel(month)) },
+            )
+        }
+    }
 }
 
 @Composable

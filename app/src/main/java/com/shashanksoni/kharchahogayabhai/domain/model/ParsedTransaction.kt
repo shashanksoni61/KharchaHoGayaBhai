@@ -30,4 +30,5 @@ data class ParsedTransaction(
     val originLabel: String? = null,
     val parseStatus: ParseStatus = ParseStatus.PARSED,
     val rawPayload: String? = null,
+    val isPromotional: Boolean = false,
 )

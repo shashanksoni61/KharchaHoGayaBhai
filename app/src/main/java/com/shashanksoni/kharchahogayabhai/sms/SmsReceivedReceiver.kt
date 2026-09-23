@@ -29,7 +29,10 @@ class SmsReceivedReceiver : BroadcastReceiver() {
             try {
                 // Inbox ContentProvider is often updated slightly after the broadcast.
                 delay(INBOX_SETTLE_DELAY_MS)
-                app.container.importSmsInbox.syncOnNewSms()
+                val result = app.container.importSmsInbox.syncOnNewSms()
+                result?.createdTransactions?.let { created ->
+                    app.container.transactionAlertNotifier.notifyCreated(created)
+                }
             } finally {
                 pendingResult.finish()
             }

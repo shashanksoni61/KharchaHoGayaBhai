@@ -22,9 +22,12 @@ import com.shashanksoni.kharchahogayabhai.domain.usecase.ImportStatementFileUseC
 import com.shashanksoni.kharchahogayabhai.domain.usecase.ResetLocalDataUseCase
 import com.shashanksoni.kharchahogayabhai.pdf.PdfTextExtractor
 import com.shashanksoni.kharchahogayabhai.pdf.PdfTransactionParser
+import com.shashanksoni.kharchahogayabhai.security.SecurityPreferences
+import com.shashanksoni.kharchahogayabhai.security.SecuritySession
 import com.shashanksoni.kharchahogayabhai.sms.SmsInboxReader
 import com.shashanksoni.kharchahogayabhai.sms.SmsScanPreferences
 import com.shashanksoni.kharchahogayabhai.sms.SmsTransactionParser
+import com.shashanksoni.kharchahogayabhai.sms.TransactionAlertNotifier
 import java.time.Clock
 import java.time.ZoneId
 
@@ -48,13 +51,23 @@ class AppContainer(context: Context) {
         SmsScanPreferences(prefs)
     }
 
+    val securityPreferences: SecurityPreferences by lazy {
+        SecurityPreferences(prefs)
+    }
+
+    val securitySession: SecuritySession = SecuritySession()
+
     private val database: KharchaDatabase by lazy {
         Room.databaseBuilder(
             applicationContext,
             KharchaDatabase::class.java,
             KharchaDatabase.NAME,
         )
-            .addMigrations(KharchaMigrations.MIGRATION_1_2, KharchaMigrations.MIGRATION_2_3)
+            .addMigrations(
+                KharchaMigrations.MIGRATION_1_2,
+                KharchaMigrations.MIGRATION_2_3,
+                KharchaMigrations.MIGRATION_3_4,
+            )
             .build()
     }
 
@@ -133,6 +146,15 @@ class AppContainer(context: Context) {
             importRepository = importRepository,
             transactionRepository = transactionRepository,
             scanPreferences = smsScanPreferences,
+            clock = clock,
+        )
+    }
+
+    val transactionAlertNotifier: TransactionAlertNotifier by lazy {
+        TransactionAlertNotifier(
+            appContext = applicationContext,
+            transactionRepository = transactionRepository,
+            zone = zone,
             clock = clock,
         )
     }
