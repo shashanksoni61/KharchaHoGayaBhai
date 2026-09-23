@@ -6,6 +6,7 @@ import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDateBounds
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDetail
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionFilter
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSourceRecord
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSummary
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
@@ -49,4 +50,13 @@ interface TransactionRepository {
 
     /** Hide or restore a row the user marked as not a payment. */
     suspend fun setIgnored(transactionId: Long, ignored: Boolean)
+
+    /** Visible SMS-backed rows the on-device model can re-score. */
+    suspend fun listVisibleSmsTransactions(): List<Transaction>
+
+    /** Every stored SMS provenance row, used to recover sender + leftover body text. */
+    suspend fun listSmsSourceRecords(): List<TransactionSourceRecord>
+
+    /** Mark or clear a not-a-payment classification. */
+    suspend fun setPromotional(transactionId: Long, promotional: Boolean)
 }

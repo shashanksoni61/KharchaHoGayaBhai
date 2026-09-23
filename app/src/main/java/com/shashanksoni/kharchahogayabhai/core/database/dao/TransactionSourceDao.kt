@@ -30,6 +30,9 @@ interface TransactionSourceDao {
     @Query("SELECT * FROM transaction_sources WHERE transaction_id = :transactionId")
     suspend fun findSourcesOf(transactionId: Long): List<TransactionSourceRecordEntity>
 
+    @Query("SELECT * FROM transaction_sources WHERE source = :source")
+    suspend fun findSourcesBySource(source: TransactionSource): List<TransactionSourceRecordEntity>
+
     /** Lets an import skip input it has already ingested before parsing it again. */
     @Query(
         """

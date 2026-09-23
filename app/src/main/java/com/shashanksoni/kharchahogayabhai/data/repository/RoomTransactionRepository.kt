@@ -1,6 +1,7 @@
 package com.shashanksoni.kharchahogayabhai.data.repository
 
 import com.shashanksoni.kharchahogayabhai.core.database.dao.TransactionDao
+import com.shashanksoni.kharchahogayabhai.core.database.dao.TransactionSourceDao
 import com.shashanksoni.kharchahogayabhai.data.local.mapper.toDomain
 import com.shashanksoni.kharchahogayabhai.domain.model.InstantRange
 import com.shashanksoni.kharchahogayabhai.domain.model.Transaction
@@ -8,6 +9,7 @@ import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDateBounds
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDetail
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionFilter
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSourceRecord
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSummary
 import com.shashanksoni.kharchahogayabhai.domain.repository.TransactionRepository
 import kotlinx.coroutines.flow.Flow
@@ -17,6 +19,7 @@ import java.time.Instant
 
 class RoomTransactionRepository(
     private val transactionDao: TransactionDao,
+    private val transactionSourceDao: TransactionSourceDao,
     private val clock: Clock = Clock.systemUTC(),
 ) : TransactionRepository {
 
@@ -86,6 +89,20 @@ class RoomTransactionRepository(
         transactionDao.updateIgnored(
             transactionId = transactionId,
             ignored = ignored,
+            updatedAtMillis = clock.millis(),
+        )
+    }
+
+    override suspend fun listVisibleSmsTransactions(): List<Transaction> =
+        transactionDao.findVisibleSmsTransactions().map { it.toDomain() }
+
+    override suspend fun listSmsSourceRecords(): List<TransactionSourceRecord> =
+        transactionSourceDao.findSourcesBySource(TransactionSource.SMS).map { it.toDomain() }
+
+    override suspend fun setPromotional(transactionId: Long, promotional: Boolean) {
+        transactionDao.updatePromotional(
+            transactionId = transactionId,
+            promotional = promotional,
             updatedAtMillis = clock.millis(),
         )
     }

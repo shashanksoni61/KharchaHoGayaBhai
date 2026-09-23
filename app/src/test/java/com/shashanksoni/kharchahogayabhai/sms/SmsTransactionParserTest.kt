@@ -204,6 +204,42 @@ class SmsTransactionParserTest {
     }
 
     @Test
+    fun classifierMarksUnusedLimitAsNotAPayment() {
+        val body = "Your card XX7788 unused limit is Rs 80,000"
+        val parsed = parser.parse(single(body, address = "JD-ICICIB")).single()
+        assertTrue(parsed.isPromotional)
+    }
+
+    @Test
+    fun classifierMarksEmiDueAsNotAPayment() {
+        val body = "EMI of Rs 4,500 is due on 02-10-26 for your loan account"
+        val parsed = parser.parse(single(body, address = "VM-HDFCBK")).single()
+        assertTrue(parsed.isPromotional)
+    }
+
+    @Test
+    fun classifierMarksGeneratedBillAsNotAPayment() {
+        val body = "Your electricity bill of Rs 1,340 is generated. Due date 12 Oct."
+        val parsed = parser.parse(single(body, address = "AD-BILL")).single()
+        assertTrue(parsed.isPromotional)
+    }
+
+    @Test
+    fun classifierMarksPreApprovedLoanAsNotAPayment() {
+        val body = "Pre-approved personal loan of Rs 2,00,000. Click to apply."
+        val parsed = parser.parse(single(body, address = "AX-KOTAKB")).single()
+        assertTrue(parsed.isPromotional)
+    }
+
+    @Test
+    fun classifierLeavesStrongUpiDebitAsAPayment() {
+        val body = "INR 49.00 debited A/c no. XX1234 UPI/P2M/343434343434/ZEPTO Axis Bank"
+        val parsed = parser.parse(single(body, address = "AX-AXISBK")).single()
+        assertTrue(!parsed.isPromotional)
+        assertEquals(4_900L, parsed.amount.minorUnits)
+    }
+
+    @Test
     fun keepsSameSmsIdAsSourceKeyForDedup() {
         val body = "SBI: Debited INR 120.00 on 15Sep26 to ZOMATO. UPI:432109876543. A/c X1234"
         val first = parser.parse(single(body, id = 55)).single()

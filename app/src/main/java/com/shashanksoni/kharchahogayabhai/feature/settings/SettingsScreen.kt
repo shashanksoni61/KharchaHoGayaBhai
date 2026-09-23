@@ -222,7 +222,9 @@ fun SettingsScreen(
                 )
                 Button(
                     onClick = { ensureSmsPermission(SmsPermissionAction.ManualScan) },
-                    enabled = !uiState.isScanningSms && !uiState.isResetting,
+                    enabled = !uiState.isScanningSms &&
+                        !uiState.isResetting &&
+                        !uiState.isReclassifyingSms,
                 ) {
                     if (uiState.isScanningSms) {
                         CircularProgressIndicator(
@@ -241,9 +243,36 @@ fun SettingsScreen(
                 }
                 TextButton(
                     onClick = { ensureSmsPermission(SmsPermissionAction.FullRescan) },
-                    enabled = !uiState.isScanningSms && !uiState.isResetting,
+                    enabled = !uiState.isScanningSms &&
+                        !uiState.isResetting &&
+                        !uiState.isReclassifyingSms,
                 ) {
                     Text(stringResource(R.string.settings_sms_rescan_all))
+                }
+                Text(
+                    text = stringResource(R.string.settings_sms_reclassify_title),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_sms_reclassify_explanation),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(
+                    onClick = { viewModel.reclassifyStoredSms() },
+                    enabled = !uiState.isScanningSms &&
+                        !uiState.isResetting &&
+                        !uiState.isReclassifyingSms,
+                ) {
+                    if (uiState.isReclassifyingSms) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                    Text(stringResource(R.string.settings_sms_reclassify_button))
                 }
                 SettingSwitchRow(
                     title = stringResource(R.string.settings_sms_listen_title),
@@ -298,7 +327,9 @@ fun SettingsScreen(
                 )
                 Button(
                     onClick = { showResetDialog = true },
-                    enabled = !uiState.isResetting && !uiState.isScanningSms,
+                    enabled = !uiState.isResetting &&
+                        !uiState.isScanningSms &&
+                        !uiState.isReclassifyingSms,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
                         contentColor = MaterialTheme.colorScheme.onError,

@@ -12,6 +12,7 @@ import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
 import com.shashanksoni.kharchahogayabhai.domain.repository.LabelRepository
 import com.shashanksoni.kharchahogayabhai.domain.repository.TransactionRepository
 import com.shashanksoni.kharchahogayabhai.domain.usecase.ImportSmsInboxUseCase
+import com.shashanksoni.kharchahogayabhai.domain.usecase.ReclassifyStoredSmsUseCase
 import com.shashanksoni.kharchahogayabhai.domain.usecase.ResetLocalDataUseCase
 import com.shashanksoni.kharchahogayabhai.domain.usecase.SmsScanMode
 import com.shashanksoni.kharchahogayabhai.security.SecurityPreferences
@@ -33,6 +34,7 @@ data class SettingsUiState(
     val labels: List<TransactionLabel> = emptyList(),
     val isResetting: Boolean = false,
     val isScanningSms: Boolean = false,
+    val isReclassifyingSms: Boolean = false,
     val lastSmsScanAt: Instant? = null,
     val autoSmsScanOnOpen: Boolean = true,
     val listenSmsInBackground: Boolean = true,
@@ -59,6 +61,7 @@ data class SettingsUiState(
 
 class SettingsViewModel(
     private val resetLocalData: ResetLocalDataUseCase,
+    private val reclassifyStoredSmsUseCase: ReclassifyStoredSmsUseCase,
     private val labelRepository: LabelRepository,
     private val importSmsInbox: ImportSmsInboxUseCase,
     private val transactionRepository: TransactionRepository,
@@ -71,6 +74,7 @@ class SettingsViewModel(
 
     private val isResetting = MutableStateFlow(false)
     private val isScanningSms = MutableStateFlow(false)
+    private val isReclassifyingSms = MutableStateFlow(false)
     private val resetCompleted = MutableStateFlow(false)
     private val errorMessage = MutableStateFlow<String?>(null)
     private val infoMessage = MutableStateFlow<String?>(null)
@@ -87,6 +91,7 @@ class SettingsViewModel(
     private data class BusyState(
         val resetting: Boolean,
         val scanning: Boolean,
+        val reclassifying: Boolean,
         val completed: Boolean,
         val error: String?,
         val info: String?,
@@ -118,13 +123,21 @@ class SettingsViewModel(
             SmsPrefsState(last, autoOnOpen, listen)
         },
         combine(
-            isResetting,
-            isScanningSms,
-            resetCompleted,
-            errorMessage,
-            infoMessage,
-        ) { resetting, scanning, completed, error, info ->
-            BusyState(resetting, scanning, completed, error, info)
+            combine(isResetting, isScanningSms, isReclassifyingSms) { resetting, scanning, reclassifying ->
+                Triple(resetting, scanning, reclassifying)
+            },
+            combine(resetCompleted, errorMessage, infoMessage) { completed, error, info ->
+                Triple(completed, error, info)
+            },
+        ) { flags, messages ->
+            BusyState(
+                resetting = flags.first,
+                scanning = flags.second,
+                reclassifying = flags.third,
+                completed = messages.first,
+                error = messages.second,
+                info = messages.third,
+            )
         },
         combine(
             combine(
@@ -162,6 +175,7 @@ class SettingsViewModel(
             labels = labels,
             isResetting = busy.resetting,
             isScanningSms = busy.scanning,
+            isReclassifyingSms = busy.reclassifying,
             lastSmsScanAt = smsPrefs.lastScanMillis.takeIf { it > 0L }?.let(Instant::ofEpochMilli),
             autoSmsScanOnOpen = smsPrefs.autoOnOpen,
             listenSmsInBackground = smsPrefs.listenBackground,
@@ -213,8 +227,30 @@ class SettingsViewModel(
         runSmsScan(SmsScanMode.FULL)
     }
 
+    /** Score stored SMS with the on-device model and hide leftover non-payments. */
+    fun reclassifyStoredSms() {
+        if (isScanningSms.value || isResetting.value || isReclassifyingSms.value) return
+        viewModelScope.launch {
+            isReclassifyingSms.value = true
+            errorMessage.value = null
+            try {
+                val result = reclassifyStoredSmsUseCase()
+                infoMessage.value = if (result.hiddenCount > 0) {
+                    "Checked ${result.scannedCount} saved SMS · " +
+                        "hid ${result.hiddenCount} that are not payments."
+                } else {
+                    "Checked ${result.scannedCount} saved SMS · nothing extra to hide."
+                }
+            } catch (error: Exception) {
+                errorMessage.value = error.message ?: "Could not re-score saved SMS"
+            } finally {
+                isReclassifyingSms.value = false
+            }
+        }
+    }
+
     private fun runSmsScan(mode: SmsScanMode) {
-        if (isScanningSms.value || isResetting.value) return
+        if (isScanningSms.value || isResetting.value || isReclassifyingSms.value) return
         applicationScope.launch {
             isScanningSms.value = true
             errorMessage.value = null
@@ -288,7 +324,7 @@ class SettingsViewModel(
     }
 
     fun resetAllData() {
-        if (isResetting.value) return
+        if (isResetting.value || isScanningSms.value || isReclassifyingSms.value) return
         viewModelScope.launch {
             isResetting.value = true
             errorMessage.value = null
@@ -333,6 +369,7 @@ class SettingsViewModel(
             initializer {
                 SettingsViewModel(
                     resetLocalData = container.resetLocalData,
+                    reclassifyStoredSmsUseCase = container.reclassifyStoredSms,
                     labelRepository = container.labelRepository,
                     importSmsInbox = container.importSmsInbox,
                     transactionRepository = container.transactionRepository,

@@ -19,6 +19,7 @@ import com.shashanksoni.kharchahogayabhai.domain.repository.TransactionRepositor
 import com.shashanksoni.kharchahogayabhai.domain.usecase.GetMonthlyDashboardUseCase
 import com.shashanksoni.kharchahogayabhai.domain.usecase.ImportSmsInboxUseCase
 import com.shashanksoni.kharchahogayabhai.domain.usecase.ImportStatementFileUseCase
+import com.shashanksoni.kharchahogayabhai.domain.usecase.ReclassifyStoredSmsUseCase
 import com.shashanksoni.kharchahogayabhai.domain.usecase.ResetLocalDataUseCase
 import com.shashanksoni.kharchahogayabhai.pdf.PdfTextExtractor
 import com.shashanksoni.kharchahogayabhai.pdf.PdfTransactionParser
@@ -93,7 +94,11 @@ class AppContainer(context: Context) {
     }
 
     val transactionRepository: TransactionRepository by lazy {
-        RoomTransactionRepository(transactionDao = database.transactionDao(), clock = clock)
+        RoomTransactionRepository(
+            transactionDao = database.transactionDao(),
+            transactionSourceDao = database.transactionSourceDao(),
+            clock = clock,
+        )
     }
 
     val categoryRepository: CategoryRepository by lazy {
@@ -117,6 +122,10 @@ class AppContainer(context: Context) {
             categoryRepository = categoryRepository,
             zone = zone,
         )
+    }
+
+    val reclassifyStoredSms: ReclassifyStoredSmsUseCase by lazy {
+        ReclassifyStoredSmsUseCase(transactionRepository = transactionRepository)
     }
 
     val resetLocalData: ResetLocalDataUseCase by lazy {

@@ -160,6 +160,9 @@
     <string name="settings_sms_explanation">Every inbox SMS is read. Real bank/UPI/card spends and credits are stored as transactions. Offers, remaining card limits, dues and balance-only alerts are marked as not-a-payment and hidden from the list. OTPs, chats and marketing without an amount are skipped.</string>
     <string name="settings_sms_scan_new">Scan new SMS</string>
     <string name="settings_sms_rescan_all">Rescan entire inbox</string>
+    <string name="settings_sms_reclassify_title">Hide non-payments in saved SMS</string>
+    <string name="settings_sms_reclassify_explanation">Runs the on-device model on SMS already stored. Limit, due, EMI and offer alerts that slipped through are unmarked as transactions and leave the list.</string>
+    <string name="settings_sms_reclassify_button">Scan saved transactions</string>
     <string name="settings_sms_last_scan">Last scan: %1$s</string>
     <string name="settings_sms_never_scanned">Not scanned yet — the next scan will read the inbox from the start.</string>
     <string name="settings_sms_stats_title">Message data</string>

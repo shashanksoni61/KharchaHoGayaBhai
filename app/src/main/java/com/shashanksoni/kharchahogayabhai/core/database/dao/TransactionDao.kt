@@ -167,6 +167,30 @@ interface TransactionDao {
     @Query("UPDATE transactions SET is_ignored = :ignored, updated_at = :updatedAtMillis WHERE id = :transactionId")
     suspend fun updateIgnored(transactionId: Long, ignored: Boolean, updatedAtMillis: Long)
 
+    @Query("UPDATE transactions SET is_promotional = :promotional, updated_at = :updatedAtMillis WHERE id = :transactionId")
+    suspend fun updatePromotional(transactionId: Long, promotional: Boolean, updatedAtMillis: Long)
+
+    /**
+     * Visible SMS rows the on-device model can re-score. Already-hidden
+     * promotional / ignored rows stay as the user (or a previous pass) left them.
+     */
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE is_promotional = 0
+          AND is_ignored = 0
+          AND (
+            primary_source = 'SMS'
+            OR EXISTS (
+              SELECT 1 FROM transaction_sources
+              WHERE transaction_sources.transaction_id = transactions.id
+                AND transaction_sources.source = 'SMS'
+            )
+          )
+        """,
+    )
+    suspend fun findVisibleSmsTransactions(): List<TransactionEntity>
+
     @Query("DELETE FROM transactions")
     suspend fun deleteAllTransactions()
 }

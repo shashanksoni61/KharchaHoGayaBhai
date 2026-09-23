@@ -9,6 +9,7 @@ import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDateBounds
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionDetail
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionFilter
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSource
+import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSourceRecord
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionSummary
 import com.shashanksoni.kharchahogayabhai.domain.model.TransactionType
 import com.shashanksoni.kharchahogayabhai.domain.repository.CategoryRepository
@@ -208,6 +209,15 @@ class GetMonthlyDashboardUseCaseTest {
             error("Not needed by the dashboard")
 
         override suspend fun setIgnored(transactionId: Long, ignored: Boolean) =
+            error("Not needed by the dashboard")
+
+        override suspend fun listVisibleSmsTransactions(): List<Transaction> =
+            error("Not needed by the dashboard")
+
+        override suspend fun listSmsSourceRecords(): List<TransactionSourceRecord> =
+            error("Not needed by the dashboard")
+
+        override suspend fun setPromotional(transactionId: Long, promotional: Boolean) =
             error("Not needed by the dashboard")
     }
 

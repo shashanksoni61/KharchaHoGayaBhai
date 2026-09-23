@@ -33,20 +33,24 @@ class SmsTransactionParser(
     override val name: String = "Indian bank / UPI SMS"
 
     override fun canParse(input: SmsParseInput): Boolean =
-        input.messages.any { looksLikeCandidate(it.body) }
+        input.messages.any { looksLikeCandidate(it.body, it.address) }
 
     override fun parse(input: SmsParseInput): List<ParsedTransaction> =
         input.messages.mapNotNull { message -> parseOne(message) }
 
     private fun parseOne(message: SmsMessage): ParsedTransaction? {
         val body = message.body
-        if (!looksLikeCandidate(body)) return null
+        if (!looksLikeCandidate(body, message.address)) return null
 
         val reference = extractReference(body)
         val account = ACCOUNT_MASK.find(body)?.groupValues?.getOrNull(1)
         val spendAmount = extractSpendAmount(body)
         val informationalOnly = isInformationalOnly(body, spendAmount)
-        val promotional = informationalOnly || isPromotionalAlert(body, reference, account)
+        val promotional = when {
+            informationalOnly || isPromotionalAlert(body, reference, account) -> true
+            hasBankMoneyMovementEvidence(body, reference, account) -> false
+            else -> SmsRealityClassifier.isNotAPayment(body, message.address)
+        }
         val amount = spendAmount ?: if (promotional) extractAnyAmount(body) else null
         val type = detectType(body) ?: if (promotional) TransactionType.DEBIT else null
         val paymentMethod = detectPaymentMethod(body)
@@ -135,12 +139,13 @@ class SmsTransactionParser(
             CREDIT_HINT.containsMatchIn(body) ||
             SPENT_HINT.containsMatchIn(body)
 
-    private fun looksLikeCandidate(body: String): Boolean {
+    private fun looksLikeCandidate(body: String, address: String?): Boolean {
         if (!AMOUNT_HINT.containsMatchIn(body)) return false
         return hasMoneyMovementVerb(body) ||
             INFORMATIONAL_HINT.containsMatchIn(body) ||
             PROMOTIONAL_HINT.containsMatchIn(body) ||
-            UPI_HINT.containsMatchIn(body)
+            UPI_HINT.containsMatchIn(body) ||
+            SmsRealityClassifier.isNotAPayment(body, address)
     }
 
     /** The amount that moved, never a remaining limit / due / balance figure. */
